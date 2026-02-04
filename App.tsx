@@ -5,7 +5,7 @@ import { ClaimCard } from './components/ClaimCard';
 import { Dashboard } from './components/Dashboard';
 import { AddClaimModal } from './components/AddClaimModal';
 import { MOCK_CLAIMS, MOCK_CLAIMANTS } from './constants';
-import { Claim, Category, Language, Status, SourceType, Claimant } from './types';
+import { Claim, Category, Language, Status, Claimant } from './types';
 import { translations } from './translations';
 
 const STORAGE_KEY = 'pap_claims_v1';
@@ -23,25 +23,50 @@ function App() {
 
   const t = translations[lang];
 
-  // Initialize data
+  // Initialize data with defensive error handling
   useEffect(() => {
-    const savedClaims = localStorage.getItem(STORAGE_KEY);
-    const savedClaimants = localStorage.getItem(CLAIMANTS_KEY);
-    
-    setClaims(savedClaims ? JSON.parse(savedClaims) : MOCK_CLAIMS);
-    setClaimants(savedClaimants ? JSON.parse(savedClaimants) : MOCK_CLAIMANTS);
+    try {
+      const savedClaims = localStorage.getItem(STORAGE_KEY);
+      const savedClaimants = localStorage.getItem(CLAIMANTS_KEY);
+      
+      if (savedClaims) {
+        const parsed = JSON.parse(savedClaims);
+        setClaims(Array.isArray(parsed) ? parsed : MOCK_CLAIMS);
+      } else {
+        setClaims(MOCK_CLAIMS);
+      }
+      
+      if (savedClaimants) {
+        const parsed = JSON.parse(savedClaimants);
+        setClaimants(Array.isArray(parsed) ? parsed : MOCK_CLAIMANTS);
+      } else {
+        setClaimants(MOCK_CLAIMANTS);
+      }
+    } catch (e) {
+      console.error("Storage loading error, falling back to defaults", e);
+      setClaims(MOCK_CLAIMS);
+      setClaimants(MOCK_CLAIMANTS);
+    }
   }, []);
 
   // Save to localStorage whenever claims or claimants change
   useEffect(() => {
     if (claims.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(claims));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(claims));
+      } catch (e) {
+        console.error("Failed to save claims", e);
+      }
     }
   }, [claims]);
 
   useEffect(() => {
     if (claimants.length > 0) {
-      localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(claimants));
+      try {
+        localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(claimants));
+      } catch (e) {
+        console.error("Failed to save claimants", e);
+      }
     }
   }, [claimants]);
 
@@ -104,7 +129,6 @@ function App() {
   const handleDeleteClaim = (id: string) => {
     const updatedClaims = claims.filter(c => c.id !== id);
     setClaims(updatedClaims);
-    // Force immediate save for delete to prevent ghost items
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedClaims));
   };
 
@@ -131,7 +155,7 @@ function App() {
   };
 
   return (
-    <div className={`min-h-screen bg-slate-50 pb-20 transition-all duration-500 ${lang === 'ne' ? 'font-sans' : 'font-inter'}`}>
+    <div className={`min-h-screen transition-all duration-500 ${lang === 'ne' ? 'font-sans' : 'font-inter'}`}>
       <Header 
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -142,13 +166,14 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10">
           <div className="bg-white p-1.5 rounded-2xl border border-slate-200 inline-flex shadow-sm overflow-x-auto max-w-full">
-            {['claims', 'claimants', 'dashboard'].map((tab) => (
+            {/* Fix: Using 'as const' on the tab names array to ensure TypeScript correctly resolves the translation key access as a string and not an object ReactNode */}
+            {(['claims', 'claimants', 'dashboard'] as const).map((tab) => (
               <button 
                 key={tab}
-                onClick={() => setActiveTab(tab as any)}
+                onClick={() => setActiveTab(tab)}
                 className={`px-6 sm:px-8 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all whitespace-nowrap ${activeTab === tab ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' : 'text-slate-500 hover:text-slate-800'}`}
               >
-                {t[tab as keyof typeof t] || tab}
+                {t[tab] || tab}
               </button>
             ))}
           </div>

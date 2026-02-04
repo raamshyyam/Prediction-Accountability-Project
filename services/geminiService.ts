@@ -6,8 +6,9 @@ const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 'en') => {
   const ai = getAI();
+  // Upgrade: Using gemini-3-pro-preview for advanced reasoning required by simulation and verification tasks
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: 'gemini-3-pro-preview',
     contents: `Analyze the following claim in depth. 
     Claim: "${claimText}"
     Language Preference: ${lang === 'ne' ? 'Nepali' : 'English'}
@@ -71,6 +72,7 @@ export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 
     const data = JSON.parse(response.text);
     return {
       ...data,
+      // Fix: Ensure grounding links are extracted for UI listing as per Search Grounding instructions
       groundingLinks: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
     };
   } catch (e) {
@@ -82,7 +84,7 @@ export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 
 export const discoverClaims = async (url: string) => {
   const ai = getAI();
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: 'gemini-3-flash-preview',
     contents: `Visit this URL and extract any specific public predictions or claims: ${url}. 
     Return as JSON: { claimantName, claimText, category, targetDateEstimate }.`,
     config: {
