@@ -1,0 +1,8 @@
+
+{
+  "name": "PAP - Prediction Accountability Platform",
+  "description": "A platform for tracking, verifying, and analyzing public claims and predictions from experts, politicians, and astrologers to promote transparency and accountability.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
