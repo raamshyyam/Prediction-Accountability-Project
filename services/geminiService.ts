@@ -1,19 +1,29 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Fix: Safely handle process.env to prevent crashes if the environment variable is not yet ready.
 const getAI = () => {
-  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
+  // Vite uses import.meta.env, but we fallback to process.env for the platform injector
+  let apiKey = '';
+  
+  try {
+    // @ts-ignore
+    apiKey = import.meta.env.VITE_API_KEY || process.env.API_KEY || '';
+  } catch (e) {
+    try {
+      apiKey = process.env.API_KEY || '';
+    } catch (e2) {}
+  }
+
   if (!apiKey) {
     console.warn("Gemini API Key is missing. Check your environment variables.");
   }
+  
   return new GoogleGenAI({ apiKey: apiKey || 'MISSING_KEY' });
 };
 
 export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 'en') => {
   try {
     const ai = getAI();
-    // Upgrade: Using gemini-3-pro-preview for advanced reasoning required by simulation and verification tasks
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: `Analyze the following claim in depth. 
@@ -75,7 +85,7 @@ export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 
       }
     });
 
-    const data = JSON.parse(response.text);
+    const data = JSON.parse(response.text || '{}');
     return {
       ...data,
       groundingLinks: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
@@ -98,7 +108,7 @@ export const discoverClaims = async (url: string) => {
         responseMimeType: "application/json"
       }
     });
-    return JSON.parse(response.text);
+    return JSON.parse(response.text || '{}');
   } catch (e) {
     console.error("Discovery failed", e);
     return null;
