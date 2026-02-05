@@ -1,18 +1,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getAI = () => {
-  // Use a safer way to check for the API key that won't throw if process is undefined
-  let apiKey = '';
-  try {
-    if (typeof process !== 'undefined' && process.env) {
-      apiKey = process.env.API_KEY || '';
-    }
-  } catch (e) {
-    console.warn("Could not access process.env.API_KEY");
-  }
+  // process.env.API_KEY will be replaced by the actual string at build time via Vite's 'define' config
+  const apiKey = process.env.API_KEY;
 
-  if (!apiKey) {
-    console.error("CRITICAL: Gemini API Key is missing. Ensure the API_KEY environment variable is set in Vercel.");
+  if (!apiKey || apiKey === 'MISSING_KEY') {
+    console.error("CRITICAL: Gemini API Key is missing. Ensure the API_KEY environment variable is set in Vercel settings.");
   }
   
   return new GoogleGenAI({ apiKey: apiKey || 'MISSING_KEY' });

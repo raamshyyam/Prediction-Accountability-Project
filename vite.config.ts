@@ -9,10 +9,10 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false
   },
-  // Ensure process and global are available to libraries that expect them
+  // We define specific variables to be replaced at build time
   define: {
-    'process.env': JSON.stringify(process.env || {}),
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ''),
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
     'global': 'window',
   },
   server: {
