@@ -15,6 +15,7 @@ if (!rootElement) {
         <App />
       </React.StrictMode>
     );
+    console.log("PAP Application successfully mounted.");
   } catch (error) {
     console.error("React Mounting Error:", error);
     rootElement.innerHTML = `
