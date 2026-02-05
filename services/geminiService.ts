@@ -1,21 +1,23 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getAI = () => {
-  // Vite uses import.meta.env, but we fallback to process.env for the platform injector
   let apiKey = '';
   
+  // Robust check for environment variables across different build/runtime environments
   try {
     // @ts-ignore
-    apiKey = import.meta.env.VITE_API_KEY || process.env.API_KEY || '';
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+      // @ts-ignore
+      apiKey = import.meta.env.VITE_API_KEY;
+    } else if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+      apiKey = process.env.API_KEY;
+    }
   } catch (e) {
-    try {
-      apiKey = process.env.API_KEY || '';
-    } catch (e2) {}
+    console.warn("Environment variable access issue:", e);
   }
 
   if (!apiKey) {
-    console.warn("Gemini API Key is missing. Check your environment variables.");
+    console.warn("Gemini API Key is missing. The app will use 'MISSING_KEY' which will cause API failures.");
   }
   
   return new GoogleGenAI({ apiKey: apiKey || 'MISSING_KEY' });
