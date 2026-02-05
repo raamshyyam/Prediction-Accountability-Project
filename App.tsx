@@ -7,6 +7,7 @@ import { AddClaimModal } from './components/AddClaimModal.tsx';
 import { MOCK_CLAIMS, MOCK_CLAIMANTS } from './constants.ts';
 import { Claim, Category, Language, Status, Claimant } from './types.ts';
 import { translations } from './translations.ts';
+import { getClaims, getClaimants, syncAllClaims, syncAllClaimants, saveClaim, saveClaimant } from './services/databaseService.ts';
 
 const STORAGE_KEY = 'pap_claims_v1';
 const CLAIMANTS_KEY = 'pap_claimants_v1';
@@ -23,48 +24,92 @@ function App() {
 
   const t = translations[lang];
 
+  // Load data from Firebase or localStorage on mount
   useEffect(() => {
-    try {
-      const savedClaims = localStorage.getItem(STORAGE_KEY);
-      const savedClaimants = localStorage.getItem(CLAIMANTS_KEY);
-      
-      if (savedClaims) {
-        const parsed = JSON.parse(savedClaims);
-        setClaims(Array.isArray(parsed) ? parsed : MOCK_CLAIMS);
-      } else {
-        setClaims(MOCK_CLAIMS);
+    const loadData = async () => {
+      try {
+        // Try to load from Firebase first
+        const firebaseClaims = await getClaims();
+        const firebaseClaimants = await getClaimants();
+        
+        if (firebaseClaims.length > 0) {
+          setClaims(firebaseClaims);
+        } else {
+          // Fall back to localStorage
+          const savedClaims = localStorage.getItem(STORAGE_KEY);
+          if (savedClaims) {
+            const parsed = JSON.parse(savedClaims);
+            setClaims(Array.isArray(parsed) ? parsed : MOCK_CLAIMS);
+          } else {
+            setClaims(MOCK_CLAIMS);
+          }
+        }
+        
+        if (firebaseClaimants.length > 0) {
+          setClaimants(firebaseClaimants);
+        } else {
+          // Fall back to localStorage
+          const savedClaimants = localStorage.getItem(CLAIMANTS_KEY);
+          if (savedClaimants) {
+            const parsed = JSON.parse(savedClaimants);
+            setClaimants(Array.isArray(parsed) ? parsed : MOCK_CLAIMANTS);
+          } else {
+            setClaimants(MOCK_CLAIMANTS);
+          }
+        }
+      } catch (e) {
+        console.error("Error loading data:", e);
+        // Fall back to localStorage and mock data
+        try {
+          const savedClaims = localStorage.getItem(STORAGE_KEY);
+          setClaims(savedClaims ? JSON.parse(savedClaims) : MOCK_CLAIMS);
+        } catch {
+          setClaims(MOCK_CLAIMS);
+        }
+        
+        try {
+          const savedClaimants = localStorage.getItem(CLAIMANTS_KEY);
+          setClaimants(savedClaimants ? JSON.parse(savedClaimants) : MOCK_CLAIMANTS);
+        } catch {
+          setClaimants(MOCK_CLAIMANTS);
+        }
       }
-      
-      if (savedClaimants) {
-        const parsed = JSON.parse(savedClaimants);
-        setClaimants(Array.isArray(parsed) ? parsed : MOCK_CLAIMANTS);
-      } else {
-        setClaimants(MOCK_CLAIMANTS);
-      }
-    } catch (e) {
-      console.error("Storage loading error, falling back to defaults", e);
-      setClaims(MOCK_CLAIMS);
-      setClaimants(MOCK_CLAIMANTS);
-    }
+    };
+    
+    loadData();
   }, []);
 
+  // Sync claims to both localStorage and Firebase
   useEffect(() => {
     if (claims.length > 0) {
+      // Always save to localStorage as backup
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(claims));
       } catch (e) {
-        console.error("Failed to save claims", e);
+        console.error("Failed to save claims to localStorage", e);
       }
+      
+      // Try to sync to Firebase
+      syncAllClaims(claims).catch(e => {
+        console.warn("Failed to sync claims to Firebase (will retry later):", e);
+      });
     }
   }, [claims]);
 
+  // Sync claimants to both localStorage and Firebase
   useEffect(() => {
     if (claimants.length > 0) {
+      // Always save to localStorage as backup
       try {
         localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(claimants));
       } catch (e) {
-        console.error("Failed to save claimants", e);
+        console.error("Failed to save claimants to localStorage", e);
       }
+      
+      // Try to sync to Firebase
+      syncAllClaimants(claimants).catch(e => {
+        console.warn("Failed to sync claimants to Firebase (will retry later):", e);
+      });
     }
   }, [claimants]);
 
