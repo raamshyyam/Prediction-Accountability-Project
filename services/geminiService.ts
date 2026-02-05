@@ -1,11 +1,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getAI = () => {
-  // process.env.API_KEY is now correctly injected by Vite's 'define' config
-  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
+  // Vite's 'define' config will replace this string at build time
+  const apiKey = process.env.API_KEY;
 
   if (!apiKey) {
-    console.warn("Gemini API Key is missing. Ensure the API_KEY environment variable is set in your Vercel project settings.");
+    console.error("CRITICAL: Gemini API Key is missing. Please set API_KEY in Vercel Environment Variables.");
   }
   
   return new GoogleGenAI({ apiKey: apiKey || 'MISSING_KEY' });

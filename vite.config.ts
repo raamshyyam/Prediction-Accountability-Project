@@ -9,9 +9,9 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false
   },
-  // This is critical: It maps build-time environment variables to the client-side bundle
+  // This replaces 'process.env.API_KEY' in your code with the actual key value during build
   define: {
-    'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ''),
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
     'global': 'window',
   },
