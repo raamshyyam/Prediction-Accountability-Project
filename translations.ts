@@ -35,7 +35,22 @@ export const translations = {
     recordedAt: "Recorded",
     targetAt: "Target",
     status: "Status",
-    lastUpdated: "Last Updated"
+    lastUpdated: "Last Updated",
+    categories: {
+      Politics: "Politics",
+      Economy: "Economy",
+      Astrology: "Astrology",
+      Hydropower: "Hydropower",
+      Tourism: "Tourism",
+      "Manifesto Tracker": "Manifesto Tracker"
+    },
+    statuses: {
+      Fulfilled: "Fulfilled",
+      Disproven: "Disproven",
+      Partial: "Partial",
+      Ongoing: "Ongoing",
+      Inconclusive: "Inconclusive"
+    }
   },
   ne: {
     title: "पीएपी",
@@ -72,6 +87,21 @@ export const translations = {
     recordedAt: "दर्ता मिति",
     targetAt: "लक्ष्य मिति",
     status: "अवस्था",
-    lastUpdated: "पछिल्लो अद्यावधिक"
+    lastUpdated: "पछिल्लो अद्यावधिक",
+    categories: {
+      Politics: "राजनीति",
+      Economy: "अर्थनीति",
+      Astrology: "ज्योतिष",
+      Hydropower: "जलविद्युत",
+      Tourism: "पर्यटन",
+      "Manifesto Tracker": "घोषणापत्र ट्र्याकर"
+    },
+    statuses: {
+      Fulfilled: "पूरा भएको",
+      Disproven: "गलत साबित",
+      Partial: "आंशिक",
+      Ongoing: "चलिरहेको",
+      Inconclusive: "अनिश्चित"
+    }
   }
 };
