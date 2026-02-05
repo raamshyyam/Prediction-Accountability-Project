@@ -1,11 +1,18 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getAI = () => {
-  // Vite's 'define' config will replace this string at build time
-  const apiKey = process.env.API_KEY;
+  // Use a safer way to check for the API key that won't throw if process is undefined
+  let apiKey = '';
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      apiKey = process.env.API_KEY || '';
+    }
+  } catch (e) {
+    console.warn("Could not access process.env.API_KEY");
+  }
 
   if (!apiKey) {
-    console.error("CRITICAL: Gemini API Key is missing. Please set API_KEY in Vercel Environment Variables.");
+    console.error("CRITICAL: Gemini API Key is missing. Ensure the API_KEY environment variable is set in Vercel.");
   }
   
   return new GoogleGenAI({ apiKey: apiKey || 'MISSING_KEY' });
@@ -75,7 +82,8 @@ export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 
       }
     });
 
-    const data = JSON.parse(response.text || '{}');
+    const text = response.text || '{}';
+    const data = JSON.parse(text);
     return {
       ...data,
       groundingLinks: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
