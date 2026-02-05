@@ -1,23 +1,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getAI = () => {
-  let apiKey = '';
-  
-  // Robust check for environment variables across different build/runtime environments
-  try {
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
-      // @ts-ignore
-      apiKey = import.meta.env.VITE_API_KEY;
-    } else if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-      apiKey = process.env.API_KEY;
-    }
-  } catch (e) {
-    console.warn("Environment variable access issue:", e);
-  }
+  // process.env.API_KEY is now correctly injected by Vite's 'define' config
+  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
 
   if (!apiKey) {
-    console.warn("Gemini API Key is missing. The app will use 'MISSING_KEY' which will cause API failures.");
+    console.warn("Gemini API Key is missing. Ensure the API_KEY environment variable is set in your Vercel project settings.");
   }
   
   return new GoogleGenAI({ apiKey: apiKey || 'MISSING_KEY' });

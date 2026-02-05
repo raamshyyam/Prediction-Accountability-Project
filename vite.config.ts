@@ -6,11 +6,13 @@ export default defineConfig({
   root: '.',
   build: {
     outDir: 'dist',
-    emptyOutDir: true
+    emptyOutDir: true,
+    sourcemap: false
   },
-  // These defines prevent 'ReferenceError: process is not defined' in the browser
+  // This is critical: It maps build-time environment variables to the client-side bundle
   define: {
-    'process.env': {},
+    'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
     'global': 'window',
   },
   server: {
