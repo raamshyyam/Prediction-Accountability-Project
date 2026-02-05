@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { analyzeClaimDeeply } from '../services/geminiService';
-import { Category, Status, SourceType, Language, Claim } from '../types';
-import { translations } from '../translations';
+import { analyzeClaimDeeply } from '../services/geminiService.ts';
+import { Category, Status, SourceType, Language, Claim } from '../types.ts';
+import { translations } from '../translations.ts';
 
 interface AddClaimModalProps {
   isOpen: boolean;
@@ -63,7 +63,6 @@ export const AddClaimModal: React.FC<AddClaimModalProps> = ({ isOpen, lang, onCl
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Fix: Consolidate webEvidence from JSON with actual search groundingChunks as required
     const groundingLinks = aiAnalysis?.groundingLinks?.map((chunk: any) => ({
       title: chunk.web?.title || 'Search Grounding Result',
       url: chunk.web?.uri
@@ -105,45 +104,28 @@ export const AddClaimModal: React.FC<AddClaimModalProps> = ({ isOpen, lang, onCl
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{t.sourceLinks}</label>
-              <input 
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-50 focus:border-blue-500 bg-slate-50 outline-none text-sm font-bold"
-                value={sourceUrl}
-                placeholder="https://..."
-                onChange={(e) => setSourceUrl(e.target.value)}
-              />
+              <input className="w-full px-4 py-3 rounded-xl border-2 border-slate-50 focus:border-blue-500 bg-slate-50 outline-none text-sm font-bold" value={sourceUrl} placeholder="https://..." onChange={(e) => setSourceUrl(e.target.value)} />
             </div>
-
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{t.category}</label>
-              <select 
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-50 bg-slate-50 text-sm font-bold"
-                value={category}
-                onChange={(e) => setCategory(e.target.value as Category)}
-              >
+              <select className="w-full px-4 py-3 rounded-xl border-2 border-slate-50 bg-slate-50 text-sm font-bold" value={category} onChange={(e) => setCategory(e.target.value as Category)}>
                 {Object.values(Category).map(c => (
                   <option key={c} value={c}>{t.categories[c as keyof typeof t.categories] || c}</option>
                 ))}
               </select>
             </div>
-
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{t.status}</label>
-              <select 
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-50 bg-slate-50 text-sm font-bold"
-                value={status}
-                onChange={(e) => setStatus(e.target.value as Status)}
-              >
+              <select className="w-full px-4 py-3 rounded-xl border-2 border-slate-50 bg-slate-50 text-sm font-bold" value={status} onChange={(e) => setStatus(e.target.value as Status)}>
                 {Object.values(Status).map(s => (
                   <option key={s} value={s}>{t.statuses[s as keyof typeof t.statuses] || s}</option>
                 ))}
               </select>
             </div>
-
             <div>
               <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{t.targetAt}</label>
               <input type="date" className="w-full px-4 py-3 rounded-xl border-2 border-slate-50 bg-slate-50 text-sm font-bold" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
             </div>
-
             {!editData && (
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{t.claimantName}</label>
@@ -151,22 +133,14 @@ export const AddClaimModal: React.FC<AddClaimModalProps> = ({ isOpen, lang, onCl
               </div>
             )}
           </div>
-
           <div>
             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{t.prediction}</label>
             <textarea required rows={3} className="w-full px-4 py-3 rounded-xl border-2 border-slate-50 bg-slate-50 text-base font-bold" value={text} onChange={(e) => setText(e.target.value)} />
           </div>
-
-          <button 
-            type="button"
-            onClick={handleDeepAnalyze}
-            disabled={isAnalyzing}
-            className="w-full py-3.5 bg-purple-600 text-white font-black rounded-2xl hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-3 transition-all text-sm"
-          >
+          <button type="button" onClick={handleDeepAnalyze} disabled={isAnalyzing} className="w-full py-3.5 bg-purple-600 text-white font-black rounded-2xl hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-3 transition-all text-sm">
             {isAnalyzing && <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"/>}
             {t.aiAnalysis}
           </button>
-
           <div className="flex gap-4 pt-4 border-t border-slate-100">
             <button type="button" onClick={onClose} className="flex-1 px-6 py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-all">{t.cancel}</button>
             <button type="submit" className="flex-[2] px-6 py-4 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all">{editData ? t.update : t.save}</button>

@@ -1,10 +1,7 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
-
-// NOTE: Standard browser ESM does not support 'import ./index.css'. 
-// Styles have been moved to index.html to prevent the blank screen crash.
+import App from './App.tsx';
 
 const rootElement = document.getElementById('root');
 
@@ -20,7 +17,6 @@ if (!rootElement) {
     );
   } catch (error) {
     console.error("React Mounting Error:", error);
-    // Fallback UI in case of total crash
     rootElement.innerHTML = `
       <div style="padding: 20px; color: red; font-family: sans-serif;">
         <h2>Application Crash</h2>

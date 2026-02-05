@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { Claim, Status, Category, Language, Claimant, AnalysisParameter } from '../types';
-import { translations } from '../translations';
-import { ClaimAnalysis } from './ClaimAnalysis';
+import { Claim, Status, Category, Language, Claimant, AnalysisParameter } from '../types.ts';
+import { translations } from '../translations.ts';
+import { ClaimAnalysis } from './ClaimAnalysis.tsx';
 
 interface ClaimCardProps {
   claim: Claim;
@@ -10,6 +10,7 @@ interface ClaimCardProps {
   lang: Language;
   onUpdateClaim: (claim: Claim) => void;
   onEditClick: (claim: Claim) => void;
+  onDeleteClick: (id: string) => void;
 }
 
 const statusColors = {
@@ -29,7 +30,7 @@ const categoryIcons = {
   [Category.MANIFESTO]: '📜',
 };
 
-export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, onUpdateClaim, onEditClick }) => {
+export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, onUpdateClaim, onEditClick, onDeleteClick }) => {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const claimant = claimants.find(c => c.id === claim.claimantId);
   const t = translations[lang];
@@ -39,38 +40,47 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, on
   };
 
   return (
-    <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-6 transition-all duration-300 ${showAnalysis ? 'col-span-full' : 'hover:shadow-lg'}`}>
+    <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-6 transition-all duration-300 ${showAnalysis ? 'col-span-full ring-2 ring-blue-500' : 'hover:shadow-lg'}`}>
       <div className="flex justify-between items-start mb-4">
         <div className="flex flex-wrap gap-2">
           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${statusColors[claim.status]}`}>
-            {claim.status}
+            {t.statuses[claim.status as keyof typeof t.statuses] || claim.status}
           </span>
           {claim.sources.map((s, i) => (
             <span key={i} className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-100 text-slate-500">
               {s.type}
             </span>
           ))}
-          {claim.topicGroup && (
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-blue-50 text-blue-600 border border-blue-100">
-              {claim.topicGroup}
-            </span>
-          )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1">
            <button 
              onClick={() => onEditClick(claim)}
-             className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
+             className="p-2 bg-slate-50 hover:bg-blue-100 rounded-lg text-blue-600 transition-colors"
              title={t.editClaim}
            >
              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
            </button>
-           <span className="text-2xl" title={claim.category}>{categoryIcons[claim.category]}</span>
+           <button 
+             onClick={() => window.confirm('Delete this claim?') && onDeleteClick(claim.id)}
+             className="p-2 bg-slate-50 hover:bg-red-100 rounded-lg text-red-400 transition-colors"
+             title={t.delete}
+           >
+             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+           </button>
+           <div className="ml-2 text-2xl" title={claim.category}>{categoryIcons[claim.category]}</div>
         </div>
       </div>
       
       <p className="text-slate-900 font-bold text-xl leading-snug mb-5">
         "{claim.text}"
       </p>
+
+      {claim.topicGroup && (
+        <p className="text-[10px] font-black uppercase text-blue-500 mb-4 flex items-center gap-1">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M17.707 9.293l-5-5a1 1 0 00-1.414 0l-7 7a1 1 0 000 1.414l5 5a1 1 0 001.414 0l7-7a1 1 0 000-1.414zM9 11a1 1 0 110-2 1 1 0 010 2z"/></svg>
+          {claim.topicGroup}
+        </p>
+      )}
       
       <div className="flex items-center gap-4 mb-6">
         <img 

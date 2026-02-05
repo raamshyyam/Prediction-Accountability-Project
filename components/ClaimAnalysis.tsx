@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Claim, Language, AnalysisParameter } from '../types';
-import { translations } from '../translations';
+import { Claim, Language, AnalysisParameter } from '../types.ts';
+import { translations } from '../translations.ts';
 
 interface Props {
   claim: Claim;
@@ -32,7 +32,6 @@ export const ClaimAnalysis: React.FC<Props> = ({ claim, lang, onUpdateParams }) 
   return (
     <div className="mt-6 border-t border-slate-100 pt-6 animate-in fade-in slide-in-from-bottom-2">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Vagueness Checklist */}
         <div>
           <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex justify-between">
             {t.vagueBoxes}
@@ -75,7 +74,6 @@ export const ClaimAnalysis: React.FC<Props> = ({ claim, lang, onUpdateParams }) 
           </div>
         </div>
 
-        {/* Verification Vectors */}
         <div>
           <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">{t.vectors}</h4>
           <div className="space-y-3">
@@ -98,7 +96,6 @@ export const ClaimAnalysis: React.FC<Props> = ({ claim, lang, onUpdateParams }) 
             ))}
           </div>
 
-          {/* Version History Section */}
           {claim.history && claim.history.length > 0 && (
             <div className="mt-8 border-t border-slate-100 pt-6">
               <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">{t.history}</h4>

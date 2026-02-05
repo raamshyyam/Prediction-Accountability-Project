@@ -1,12 +1,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Header } from './components/Header';
-import { ClaimCard } from './components/ClaimCard';
-import { Dashboard } from './components/Dashboard';
-import { AddClaimModal } from './components/AddClaimModal';
-import { MOCK_CLAIMS, MOCK_CLAIMANTS } from './constants';
-import { Claim, Category, Language, Status, Claimant } from './types';
-import { translations } from './translations';
+import { Header } from './components/Header.tsx';
+import { ClaimCard } from './components/ClaimCard.tsx';
+import { Dashboard } from './components/Dashboard.tsx';
+import { AddClaimModal } from './components/AddClaimModal.tsx';
+import { MOCK_CLAIMS, MOCK_CLAIMANTS } from './constants.ts';
+import { Claim, Category, Language, Status, Claimant } from './types.ts';
+import { translations } from './translations.ts';
 
 const STORAGE_KEY = 'pap_claims_v1';
 const CLAIMANTS_KEY = 'pap_claimants_v1';
@@ -23,7 +23,6 @@ function App() {
 
   const t = translations[lang];
 
-  // Initialize data with defensive error handling
   useEffect(() => {
     try {
       const savedClaims = localStorage.getItem(STORAGE_KEY);
@@ -49,7 +48,6 @@ function App() {
     }
   }, []);
 
-  // Save to localStorage whenever claims or claimants change
   useEffect(() => {
     if (claims.length > 0) {
       try {
@@ -166,7 +164,6 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10">
           <div className="bg-white p-1.5 rounded-2xl border border-slate-200 inline-flex shadow-sm overflow-x-auto max-w-full">
-            {/* Fix: Using 'as const' on the tab names array to ensure TypeScript correctly resolves the translation key access as a string and not an object ReactNode */}
             {(['claims', 'claimants', 'dashboard'] as const).map((tab) => (
               <button 
                 key={tab}
