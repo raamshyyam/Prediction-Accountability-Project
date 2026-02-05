@@ -1,5 +1,5 @@
 
-import { Category, Status, Claim, Claimant, SourceType } from './types';
+import { Category, Status, Claim, Claimant, SourceType } from './types.ts';
 
 export const MOCK_CLAIMANTS: Claimant[] = [
   {
@@ -11,7 +11,6 @@ export const MOCK_CLAIMANTS: Claimant[] = [
     accuracyRate: 72,
     vaguenessScore: 2.5,
     totalClaims: 45,
-    // Fix: Adding missing required property 'tags'
     tags: ['Economy', 'Public Policy', 'Finance']
   },
   {
@@ -23,7 +22,6 @@ export const MOCK_CLAIMANTS: Claimant[] = [
     accuracyRate: 35,
     vaguenessScore: 8.2,
     totalClaims: 120,
-    // Fix: Adding missing required property 'tags'
     tags: ['Astrology', 'Spirituality', 'Predictions']
   },
   {
@@ -35,7 +33,6 @@ export const MOCK_CLAIMANTS: Claimant[] = [
     accuracyRate: 85,
     vaguenessScore: 1.8,
     totalClaims: 28,
-    // Fix: Adding missing required property 'tags'
     tags: ['Hydropower', 'Infrastructure', 'Energy']
   }
 ];
@@ -49,7 +46,6 @@ export const MOCK_CLAIMS: Claim[] = [
     targetDate: '2025-07-15',
     category: Category.ECONOMY,
     status: Status.ONGOING,
-    // Fix: replaced 'sourceUrl' with required 'sources' array and added missing required fields
     sources: [{ type: SourceType.NEWS, url: 'https://example.com/news/1' }],
     vaguenessIndex: 2,
     analysisParams: [],
@@ -63,7 +59,6 @@ export const MOCK_CLAIMS: Claim[] = [
     targetDate: '2024-04-10',
     category: Category.ASTROLOGY,
     status: Status.DISPROVEN,
-    // Fix: replaced 'sourceUrl' with required 'sources' array and removed 'verificationDetails' (not in Claim type)
     sources: [{ type: SourceType.NEWS, url: 'https://example.com/news/2' }],
     vaguenessIndex: 9,
     analysisParams: [],
@@ -77,7 +72,6 @@ export const MOCK_CLAIMS: Claim[] = [
     targetDate: '2023-12-31',
     category: Category.HYDROPOWER,
     status: Status.FULFILLED,
-    // Fix: replaced 'sourceUrl' with required 'sources' array and removed 'verificationDetails' (not in Claim type)
     sources: [{ type: SourceType.NEWS, url: 'https://example.com/news/3' }],
     vaguenessIndex: 1,
     analysisParams: [],
