@@ -4,6 +4,8 @@ import { Header } from './components/Header.tsx';
 import { ClaimCard } from './components/ClaimCard.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
 import { AddClaimModal } from './components/AddClaimModal.tsx';
+import { ClaimDetailView } from './components/ClaimDetailView.tsx';
+import { ClaimantProfile } from './components/ClaimantProfile.tsx';
 import { MOCK_CLAIMS, MOCK_CLAIMANTS } from './constants.ts';
 import { Claim, Category, Language, Status, Claimant } from './types.ts';
 import { translations } from './translations.ts';
@@ -21,6 +23,8 @@ function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editClaim, setEditClaim] = useState<Claim | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<Category | 'All'>('All');
+  const [selectedClaimForDetail, setSelectedClaimForDetail] = useState<Claim | null>(null);
+  const [selectedClaimantProfile, setSelectedClaimantProfile] = useState<Claimant | null>(null);
 
   const t = translations[lang];
 
@@ -253,6 +257,11 @@ function App() {
                   onUpdateClaim={handleUpdateClaim}
                   onEditClick={handleEditClick}
                   onDeleteClick={handleDeleteClaim}
+                  onViewDetails={(claim) => setSelectedClaimForDetail(claim)}
+                  onViewClaimantProfile={(claimantId) => {
+                    const claimant = claimants.find(c => c.id === claimantId);
+                    if (claimant) setSelectedClaimantProfile(claimant);
+                  }}
                 />
               ))}
               {filteredClaims.length === 0 && (
@@ -270,15 +279,19 @@ function App() {
         {activeTab === 'claimants' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {claimants.map(claimant => (
-              <div key={claimant.id} className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 flex flex-col items-center text-center group hover:shadow-xl transition-all">
-                <img src={claimant.photoUrl} alt={claimant.name} className="w-28 h-28 rounded-full border-4 border-slate-50 mb-4" />
+              <button 
+                key={claimant.id} 
+                onClick={() => setSelectedClaimantProfile(claimant)}
+                className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 flex flex-col items-center text-center group hover:shadow-xl transition-all hover:border-blue-300 cursor-pointer"
+              >
+                <img src={claimant.photoUrl} alt={claimant.name} className="w-28 h-28 rounded-full border-4 border-slate-50 mb-4 group-hover:ring-4 ring-blue-300 transition-all" />
                 <h3 className="text-xl font-black text-slate-800">{claimant.name}</h3>
                 <p className="text-sm text-blue-600 font-bold mb-3">{claimant.affiliation}</p>
                 <div className="w-full grid grid-cols-2 gap-4 border-t border-slate-50 pt-8 mt-4 text-xs">
                     <div className="text-left"><p className="font-black text-slate-300 uppercase">{t.claims}</p><p className="text-lg font-black text-slate-700">{claimant.totalClaims}</p></div>
                     <div className="text-right"><p className="font-black text-slate-300 uppercase">{t.accuracy}</p><p className="text-lg font-black text-slate-700">{claimant.accuracyRate}%</p></div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -291,6 +304,25 @@ function App() {
         onClose={() => { setIsModalOpen(false); setEditClaim(null); }} 
         onAdd={handleAddClaim}
       />
+
+      {selectedClaimForDetail && (
+        <ClaimDetailView
+          claim={selectedClaimForDetail}
+          claimant={claimants.find(c => c.id === selectedClaimForDetail.claimantId)}
+          lang={lang}
+          onClose={() => setSelectedClaimForDetail(null)}
+          onUpdateClaim={handleUpdateClaim}
+        />
+      )}
+
+      {selectedClaimantProfile && (
+        <ClaimantProfile
+          claimant={selectedClaimantProfile}
+          claims={claims}
+          lang={lang}
+          onClose={() => setSelectedClaimantProfile(null)}
+        />
+      )}
     </div>
   );
 }

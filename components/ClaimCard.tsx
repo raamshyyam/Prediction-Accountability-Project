@@ -11,6 +11,8 @@ interface ClaimCardProps {
   onUpdateClaim: (claim: Claim) => void;
   onEditClick: (claim: Claim) => void;
   onDeleteClick: (id: string) => void;
+  onViewDetails?: (claim: Claim) => void;
+  onViewClaimantProfile?: (claimantId: string) => void;
 }
 
 const statusColors = {
@@ -30,7 +32,7 @@ const categoryIcons = {
   [Category.MANIFESTO]: '📜',
 };
 
-export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, onUpdateClaim, onEditClick, onDeleteClick }) => {
+export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, onUpdateClaim, onEditClick, onDeleteClick, onViewDetails, onViewClaimantProfile }) => {
   const [showAnalysis, setShowAnalysis] = useState(false);
   const claimant = claimants.find(c => c.id === claim.claimantId);
   const t = translations[lang];
@@ -86,9 +88,10 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, on
         <img 
           src={claimant?.photoUrl || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(claimant?.name || 'User')} 
           alt={claimant?.name} 
-          className="w-10 h-10 rounded-full border-2 border-slate-50" 
+          className="w-10 h-10 rounded-full border-2 border-slate-50 cursor-pointer hover:ring-2 ring-blue-400 transition-all" 
+          onClick={() => onViewClaimantProfile?.(claim.claimantId)}
         />
-        <div className="flex-1">
+        <div className="flex-1 cursor-pointer hover:opacity-75 transition-opacity" onClick={() => onViewClaimantProfile?.(claim.claimantId)}>
           <p className="text-sm font-bold text-slate-800 leading-none mb-1">{claimant?.name || 'Unknown'}</p>
           <p className="text-xs text-slate-500 font-medium">{claimant?.affiliation || 'Individual'}</p>
         </div>
@@ -109,7 +112,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, on
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
          <div className="flex items-center gap-3">
             <div className="flex flex-col">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{t.vagueness}</span>
@@ -124,13 +127,23 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, on
               </div>
             </div>
          </div>
-         <button 
-           onClick={() => setShowAnalysis(!showAnalysis)}
-           className="px-4 py-2 bg-slate-900 text-white text-xs font-black rounded-xl hover:bg-slate-800 transition-all flex items-center gap-2"
-         >
-           {showAnalysis ? t.cancel : t.analysis}
-           <svg className={`w-3 h-3 transition-transform ${showAnalysis ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-         </button>
+         <div className="flex gap-2">
+           <button 
+             onClick={() => onViewDetails?.(claim)}
+             className="px-3 py-2 bg-emerald-600 text-white text-xs font-black rounded-lg hover:bg-emerald-700 transition-all flex items-center gap-2"
+             title="View full details and evidence"
+           >
+             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+             Details
+           </button>
+           <button 
+             onClick={() => setShowAnalysis(!showAnalysis)}
+             className="px-3 py-2 bg-slate-900 text-white text-xs font-black rounded-xl hover:bg-slate-800 transition-all flex items-center gap-2"
+           >
+             {showAnalysis ? t.cancel : t.analysis}
+             <svg className={`w-3 h-3 transition-transform ${showAnalysis ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+           </button>
+         </div>
       </div>
 
       {showAnalysis && (
