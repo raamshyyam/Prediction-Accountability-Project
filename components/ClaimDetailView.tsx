@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Claim, Language, Claimant, Status } from '../types.ts';
 import { translations } from '../translations.ts';
 import { generateVaguenessInsight } from '../services/geminiService.ts';
+import { isAIConfigured } from '../utils/aiConfig.ts';
 
 interface ClaimDetailViewProps {
   claim: Claim;
@@ -18,21 +19,48 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
   const [error, setError] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+    
+    // Skip AI loading if not configured
+    if (!isAIConfigured()) {
+      setVaguenessInsight('AI analysis not available. Configure VITE_API_KEY to enable.');
+      setLoading(false);
+      return;
+    }
+    
     const loadInsight = async () => {
       setLoading(true);
       setError(false);
       try {
-        const insight = await generateVaguenessInsight(claim.text, claim.vaguenessIndex);
-        setVaguenessInsight(insight);
+        // Add timeout: if AI call takes more than 5 seconds, skip it
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('AI insight timeout')), 5000)
+        );
+        
+        const insightPromise = generateVaguenessInsight(claim.text, claim.vaguenessIndex);
+        const insight = await Promise.race([insightPromise, timeoutPromise]) as string;
+        
+        if (isMounted) {
+          setVaguenessInsight(insight);
+        }
       } catch (e) {
-        console.error("Failed to load vagueness insight:", e);
-        setVaguenessInsight('Analysis not available at this time.');
-        setError(true);
+        if (isMounted) {
+          console.warn("Vagueness insight unavailable:", e);
+          setVaguenessInsight('Analysis not available at this time.');
+          setError(true);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
+    
     loadInsight();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [claim]);
 
   const getVaguenessColor = (score: number) => {

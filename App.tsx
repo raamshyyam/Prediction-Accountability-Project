@@ -10,6 +10,7 @@ import { MOCK_CLAIMS, MOCK_CLAIMANTS } from './constants.ts';
 import { Claim, Category, Language, Status, Claimant } from './types.ts';
 import { translations } from './translations.ts';
 import { getClaims, getClaimants, syncAllClaims, syncAllClaimants, saveClaim, saveClaimant } from './services/databaseService.ts';
+import { logAIStatus } from './utils/aiConfig.ts';
 
 const STORAGE_KEY = 'pap_claims_v1';
 const CLAIMANTS_KEY = 'pap_claimants_v1';
@@ -27,6 +28,11 @@ function App() {
   const [selectedClaimantProfile, setSelectedClaimantProfile] = useState<Claimant | null>(null);
 
   const t = translations[lang];
+
+  // Log AI status on app mount
+  useEffect(() => {
+    logAIStatus();
+  }, []);
 
   // Load data from Firebase or localStorage on mount
   useEffect(() => {

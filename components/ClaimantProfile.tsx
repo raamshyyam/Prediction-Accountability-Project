@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Claimant, Claim, Language, Status } from '../types.ts';
 import { translations } from '../translations.ts';
 import { searchClaimantBackground } from '../services/geminiService.ts';
+import { isAIConfigured } from '../utils/aiConfig.ts';
 
 interface ClaimantProfileProps {
   claimant: Claimant;
@@ -16,18 +17,45 @@ export const ClaimantProfile: React.FC<ClaimantProfileProps> = ({ claimant, clai
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+    
+    // Skip AI loading if not configured
+    if (!isAIConfigured()) {
+      setBackgroundInfo(null);
+      setLoading(false);
+      return;
+    }
+    
     const loadBackground = async () => {
       setLoading(true);
       try {
-        const info = await searchClaimantBackground(claimant.name);
-        setBackgroundInfo(info);
+        // Add timeout: if AI call takes more than 5 seconds, skip it
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Background search timeout')), 5000)
+        );
+        
+        const infoPromise = searchClaimantBackground(claimant.name);
+        const info = await Promise.race([infoPromise, timeoutPromise]);
+        
+        if (isMounted) {
+          setBackgroundInfo(info);
+        }
       } catch (e) {
-        console.error("Failed to load background", e);
+        if (isMounted) {
+          console.warn("Failed to load claimant background:", e);
+          setBackgroundInfo(null);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
     loadBackground();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [claimant]);
 
   const claimantClaims = claims.filter(c => c.claimantId === claimant.id);
