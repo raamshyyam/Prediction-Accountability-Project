@@ -12,7 +12,7 @@ export default defineConfig({
   // Pass environment variables to the browser using define
   // These get replaced at build time
   define: {
-    'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ''),
+    'process.env.VITE_API_KEY': JSON.stringify(process.env.VITE_API_KEY || ''),
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
   },
   server: {

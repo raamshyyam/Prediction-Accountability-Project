@@ -1,19 +1,15 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getAI = () => {
-  // Safe access to the API key defined in vite.config.ts
-  let apiKey = '';
-  try {
-    apiKey = process.env.API_KEY || '';
-  } catch (e) {
-    console.warn("Gemini Service: Could not access process.env.API_KEY directly.");
-  }
+  // Access API key from Vite environment (requires VITE_ prefix for client-side)
+  const apiKey = (import.meta.env.VITE_API_KEY || process.env.VITE_API_KEY || '').trim();
 
-  if (!apiKey || apiKey === 'MISSING_KEY') {
-    console.error("CRITICAL: Gemini API Key is missing. Ensure the API_KEY environment variable is set in Vercel project settings.");
+  if (!apiKey) {
+    console.error("CRITICAL: Gemini API Key is missing. Set VITE_API_KEY in your Vercel environment variables or .env file.");
+    return new GoogleGenAI({ apiKey: 'dummy-key-for-error-handling' });
   }
   
-  return new GoogleGenAI({ apiKey: apiKey || 'MISSING_KEY' });
+  return new GoogleGenAI({ apiKey });
 };
 
 export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 'en') => {
