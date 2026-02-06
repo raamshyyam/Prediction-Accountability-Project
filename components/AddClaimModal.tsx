@@ -44,7 +44,7 @@ export const AddClaimModal: React.FC<AddClaimModalProps> = ({ isOpen, lang, onCl
       setSources([{ type: SourceType.NEWS, url: '' }]);
       setDescription('');
     }
-  }, [editData, isOpen];
+  }, [editData, isOpen]);
 
   if (!isOpen) return null;
 
