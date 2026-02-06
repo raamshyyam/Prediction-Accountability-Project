@@ -15,13 +15,22 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
   const t = translations[lang];
   const [vaguenessInsight, setVaguenessInsight] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     const loadInsight = async () => {
       setLoading(true);
-      const insight = await generateVaguenessInsight(claim.text, claim.vaguenessIndex);
-      setVaguenessInsight(insight);
-      setLoading(false);
+      setError(false);
+      try {
+        const insight = await generateVaguenessInsight(claim.text, claim.vaguenessIndex);
+        setVaguenessInsight(insight);
+      } catch (e) {
+        console.error("Failed to load vagueness insight:", e);
+        setVaguenessInsight('Analysis not available at this time.');
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
     };
     loadInsight();
   }, [claim]);

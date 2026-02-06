@@ -32,51 +32,66 @@ function App() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Try to load from Firebase first
-        const firebaseClaims = await getClaims();
-        const firebaseClaimants = await getClaimants();
+        // Always try to load from localStorage first as primary source
+        const savedClaims = localStorage.getItem(STORAGE_KEY);
+        const savedClaimants = localStorage.getItem(CLAIMANTS_KEY);
         
-        if (firebaseClaims.length > 0) {
-          setClaims(firebaseClaims);
-        } else {
-          // Fall back to localStorage
-          const savedClaims = localStorage.getItem(STORAGE_KEY);
-          if (savedClaims) {
+        if (savedClaims) {
+          try {
             const parsed = JSON.parse(savedClaims);
-            setClaims(Array.isArray(parsed) ? parsed : MOCK_CLAIMS);
-          } else {
+            if (Array.isArray(parsed)) {
+              setClaims(parsed);
+            } else {
+              setClaims(MOCK_CLAIMS);
+            }
+          } catch (e) {
+            console.error("Failed to parse saved claims:", e);
             setClaims(MOCK_CLAIMS);
           }
-        }
-        
-        if (firebaseClaimants.length > 0) {
-          setClaimants(firebaseClaimants);
         } else {
-          // Fall back to localStorage
-          const savedClaimants = localStorage.getItem(CLAIMANTS_KEY);
-          if (savedClaimants) {
-            const parsed = JSON.parse(savedClaimants);
-            setClaimants(Array.isArray(parsed) ? parsed : MOCK_CLAIMANTS);
-          } else {
-            setClaimants(MOCK_CLAIMANTS);
-          }
-        }
-      } catch (e) {
-        console.error("Error loading data:", e);
-        // Fall back to localStorage and mock data
-        try {
-          const savedClaims = localStorage.getItem(STORAGE_KEY);
-          setClaims(savedClaims ? JSON.parse(savedClaims) : MOCK_CLAIMS);
-        } catch {
           setClaims(MOCK_CLAIMS);
         }
         
-        try {
-          const savedClaimants = localStorage.getItem(CLAIMANTS_KEY);
-          setClaimants(savedClaimants ? JSON.parse(savedClaimants) : MOCK_CLAIMANTS);
-        } catch {
+        if (savedClaimants) {
+          try {
+            const parsed = JSON.parse(savedClaimants);
+            if (Array.isArray(parsed)) {
+              setClaimants(parsed);
+            } else {
+              setClaimants(MOCK_CLAIMANTS);
+            }
+          } catch (e) {
+            console.error("Failed to parse saved claimants:", e);
+            setClaimants(MOCK_CLAIMANTS);
+          }
+        } else {
           setClaimants(MOCK_CLAIMANTS);
         }
+        
+        // Then try to sync with Firebase in background (non-blocking)
+        try {
+          const firebaseClaims = await getClaims();
+          if (firebaseClaims.length > 0) {
+            setClaims(firebaseClaims);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(firebaseClaims));
+          }
+        } catch (e) {
+          console.warn("Firebase sync failed, using localStorage:", e);
+        }
+        
+        try {
+          const firebaseClaimants = await getClaimants();
+          if (firebaseClaimants.length > 0) {
+            setClaimants(firebaseClaimants);
+            localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(firebaseClaimants));
+          }
+        } catch (e) {
+          console.warn("Firebase sync failed, using localStorage:", e);
+        }
+      } catch (e) {
+        console.error("Error loading data:", e);
+        setClaims(MOCK_CLAIMS);
+        setClaimants(MOCK_CLAIMANTS);
       }
     };
     
