@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@google/genai": "^1.40.0",
-    "busboy": "^1.6.0",
     "@sentry/node": "^8.10.0",
     "firebase": "^10.8.0",
     "pdf-parse": "^1.1.1",
