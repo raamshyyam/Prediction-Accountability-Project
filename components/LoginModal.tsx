@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Language } from '../types.ts';
 import { translations } from '../translations.ts';
 
@@ -13,6 +13,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({ lang, onLoginSuccess }) 
   const [adminPassword, setAdminPassword] = useState('');
   const [error, setError] = useState('');
   const ADMIN_PASSWORD = 'pap2026'; // Simple password for demo
+
+  useEffect(() => {
+    // Auto-login as viewer on mount (no need to ask)
+    const timer = setTimeout(() => {
+      localStorage.setItem('pap_auth', JSON.stringify({ role: 'viewer', loginTime: Date.now() }));
+      onLoginSuccess(false);
+    }, 500); // Brief delay for smooth UX
+    return () => clearTimeout(timer);
+  }, [onLoginSuccess]);
 
   const handleLogin = () => {
     if (role === 'admin') {

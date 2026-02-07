@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Language } from '../types.ts';
 import { translations } from '../translations.ts';
+import { analyzeClaimDeeply } from '../services/geminiService.ts';
+import { isAIConfigured } from '../utils/aiConfig.ts';
 
 interface ManifestoDocument {
   id: string;
@@ -26,16 +28,45 @@ interface ManifestoTrackerProps {
   lang: Language;
 }
 
+const MANIFESTOS_STORAGE_KEY = 'pap_manifestos_v1';
+
 export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
   const t = translations[lang];
   const [manifestos, setManifestos] = useState<ManifestoDocument[]>([]);
   const [selectedManifesto, setSelectedManifesto] = useState<ManifestoDocument | null>(null);
+  const [editingManifesto, setEditingManifesto] = useState<ManifestoDocument | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadParty, setUploadParty] = useState('');
   const [uploadYear, setUploadYear] = useState(new Date().getFullYear());
   const [uploadContent, setUploadContent] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Load manifestos from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem(MANIFESTOS_STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setManifestos(parsed);
+        }
+      } catch (e) {
+        console.error('Failed to parse saved manifestos', e);
+      }
+    }
+  }, []);
+
+  // Save manifestos to localStorage whenever they change
+  useEffect(() => {
+    if (manifestos.length > 0) {
+      try {
+        localStorage.setItem(MANIFESTOS_STORAGE_KEY, JSON.stringify(manifestos));
+      } catch (e) {
+        console.error('Failed to save manifestos to localStorage', e);
+      }
+    }
+  }, [manifestos]);
 
   const extractTextFromPDF = async (file: File): Promise<string> => {
     // Simple fallback: show user the PDF was selected but requires manual extraction
@@ -72,20 +103,55 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
 
     setIsProcessing(true);
     try {
-      // TODO: Add AI-powered claim extraction
-      const newManifesto: ManifestoDocument = {
-        id: `manifesto-${Date.now()}`,
-        party: uploadParty,
-        year: uploadYear,
-        uploadDate: new Date().toISOString(),
-        extractedClaims: [],
-        content: uploadContent
-      };
+      if (editingManifesto) {
+        // Update existing manifesto
+        setManifestos(manifestos.map(m => 
+          m.id === editingManifesto.id 
+            ? { ...m, party: uploadParty, year: uploadYear, content: uploadContent }
+            : m
+        ));
+        setEditingManifesto(null);
+      } else {
+        // Create new manifesto
+        const newManifesto: ManifestoDocument = {
+          id: `manifesto-${Date.now()}`,
+          party: uploadParty,
+          year: uploadYear,
+          uploadDate: new Date().toISOString(),
+          extractedClaims: [],
+          content: uploadContent
+        };
+        
+        // Try to extract claims using AI if configured
+        if (isAIConfigured()) {
+          try {
+            const aiResult = await analyzeClaimDeeply(
+              `Extract key promises and claims from this manifesto:\n\n${uploadContent.substring(0, 1000)}...`,
+              lang
+            );
+            
+            if (aiResult && aiResult.analysisParams) {
+              newManifesto.extractedClaims = aiResult.analysisParams.map((param, idx) => ({
+                id: `claim-${idx}`,
+                text: param.label,
+                priority: idx < 3 ? 'high' : idx < 6 ? 'medium' : 'low',
+                category: 'Manifesto',
+                status: 'pending',
+                progressPercentage: 0
+              }));
+            }
+          } catch (err) {
+            console.warn('AI claim extraction failed, saving without claims', err);
+          }
+        }
+        
+        setManifestos([...manifestos, newManifesto]);
+      }
       
-      setManifestos([...manifestos, newManifesto]);
       setShowUploadModal(false);
       setUploadParty('');
       setUploadContent('');
+      setUploadFile(null);
     } catch (error) {
       console.error('Error uploading manifesto:', error);
     } finally {
@@ -131,12 +197,23 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
       </div>
 
       {/* Upload Modal */}
-      {showUploadModal && (
+      {(showUploadModal || editingManifesto) && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
-              <h2 className="text-xl font-black text-slate-800">Upload Party Manifesto</h2>
-              <button onClick={() => setShowUploadModal(false)} className="p-2 text-slate-400 hover:text-slate-800 transition-colors">
+              <h2 className="text-xl font-black text-slate-800">
+                {editingManifesto ? 'Edit Manifesto' : 'Upload Party Manifesto'}
+              </h2>
+              <button 
+                onClick={() => {
+                  setShowUploadModal(false);
+                  setEditingManifesto(null);
+                  setUploadParty('');
+                  setUploadContent('');
+                  setUploadFile(null);
+                }} 
+                className="p-2 text-slate-400 hover:text-slate-800 transition-colors"
+              >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -223,10 +300,26 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
               </div>
 
               <div className="flex gap-4 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setShowUploadModal(false)} className="flex-1 px-6 py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-all">Cancel</button>
-                <button type="submit" disabled={isProcessing} className="flex-[2] px-6 py-4 bg-purple-600 text-white font-black rounded-2xl hover:bg-purple-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setEditingManifesto(null);
+                    setUploadParty('');
+                    setUploadContent('');
+                    setUploadFile(null);
+                  }} 
+                  className="flex-1 px-6 py-4 text-slate-500 font-bold hover:bg-slate-50 rounded-2xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isProcessing} 
+                  className="flex-[2] px-6 py-4 bg-purple-600 text-white font-black rounded-2xl hover:bg-purple-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
                   {isProcessing && <div className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"/>}
-                  {isProcessing ? 'Processing...' : 'Upload & Extract'}
+                  {isProcessing ? 'Processing...' : (editingManifesto ? 'Update Manifesto' : 'Upload & Extract')}
                 </button>
               </div>
             </form>
@@ -306,9 +399,25 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
                 <h2 className="text-2xl font-black">{selectedManifesto.party}</h2>
                 <p className="text-purple-100 text-sm">{selectedManifesto.year} Election Manifesto</p>
               </div>
-              <button onClick={() => setSelectedManifesto(null)} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
+              <div className="flex gap-2 items-center">
+                <button 
+                  onClick={() => {
+                    setEditingManifesto(selectedManifesto);
+                    setUploadParty(selectedManifesto.party);
+                    setUploadYear(selectedManifesto.year);
+                    setUploadContent(selectedManifesto.content || '');
+                    setSelectedManifesto(null);
+                  }}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors flex items-center gap-2"
+                  title="Edit manifesto"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  Edit
+                </button>
+                <button onClick={() => setSelectedManifesto(null)} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
             </div>
 
             <div className="p-6 space-y-6">

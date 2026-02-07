@@ -192,16 +192,20 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
             <div className="space-y-4">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Verifiability Parameters</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {currentClaim.analysisParams.map((param, i) => (
-                  <div key={i} className={`rounded-lg p-3 flex items-center gap-3 ${param.fulfilled ? 'bg-green-50 border border-green-200' : 'bg-slate-50 border border-slate-200'}`}>
-                    <div className={`w-6 h-6 rounded flex items-center justify-center text-sm font-bold ${param.fulfilled ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                      {param.fulfilled ? '✓' : '○'}
+                {currentClaim.analysisParams.map((param, i) => {
+                  if (!param || typeof param !== 'object') return null;
+                  const isFulfilled = Boolean(param.fulfilled);
+                  return (
+                    <div key={i} className={`rounded-lg p-3 flex items-center gap-3 ${isFulfilled ? 'bg-green-50 border border-green-200' : 'bg-slate-50 border border-slate-200'}`}>
+                      <div className={`w-6 h-6 rounded flex items-center justify-center text-sm font-bold ${isFulfilled ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-400'}`}>
+                        {isFulfilled ? '✓' : '○'}
+                      </div>
+                      <span className={`text-sm ${isFulfilled ? 'text-green-900 font-bold' : 'text-slate-600'}`}>
+                        {param.label || 'Parameter'}
+                      </span>
                     </div>
-                    <span className={`text-sm ${param.fulfilled ? 'text-green-900 font-bold' : 'text-slate-600'}`}>
-                      {param.label}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -211,28 +215,33 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
             <div className="space-y-4">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Verification Analysis Models</h3>
               <div className="space-y-4">
-                {currentClaim.verificationVectors.map((vector, i) => (
-                  <div key={i} className="border-l-4 border-blue-500 bg-slate-50 rounded-r-lg p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-bold text-slate-800">{vector.modelName}</h4>
-                      <span className={`text-xs font-black px-2 py-1 rounded uppercase ${
-                        vector.verdict === 'Fulfilled' ? 'bg-green-100 text-green-700' :
-                        vector.verdict === 'Disproven' ? 'bg-red-100 text-red-700' :
-                        'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {vector.verdict}
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-600 mb-3">{vector.reasoning}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-500">Confidence:</span>
-                      <div className="flex-1 h-2 bg-slate-300 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500" style={{ width: `${vector.confidence * 100}%` }} />
+                {currentClaim.verificationVectors.map((vector, i) => {
+                  if (!vector || typeof vector !== 'object') return null;
+                  const verdict = vector.verdict || 'Inconclusive';
+                  const confidence = typeof vector.confidence === 'number' ? Math.max(0, Math.min(1, vector.confidence)) : 0.5;
+                  return (
+                    <div key={i} className="border-l-4 border-blue-500 bg-slate-50 rounded-r-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-bold text-slate-800">{vector.modelName || 'Model'}</h4>
+                        <span className={`text-xs font-black px-2 py-1 rounded uppercase ${
+                          verdict === 'Fulfilled' ? 'bg-green-100 text-green-700' :
+                          verdict === 'Disproven' ? 'bg-red-100 text-red-700' :
+                          'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {verdict}
+                        </span>
                       </div>
-                      <span className="text-xs font-bold text-slate-700">{Math.round(vector.confidence * 100)}%</span>
+                      <p className="text-sm text-slate-600 mb-3">{vector.reasoning || 'No reasoning provided'}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-500">Confidence:</span>
+                        <div className="flex-1 h-2 bg-slate-300 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500" style={{ width: `${confidence * 100}%` }} />
+                        </div>
+                        <span className="text-xs font-bold text-slate-700">{Math.round(confidence * 100)}%</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
