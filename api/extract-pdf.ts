@@ -8,13 +8,8 @@ export default async function handler(req, res) {
     // Import pdf.js
     const pdf = (await import('pdfjs-dist/legacy/build/pdf.js')).default;
     
-    // Use a CDN for the worker (Vercel's /var/task filesystem is read-only for node_modules)
-    // Fallback to building without a worker if needed
-    try {
-      pdf.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    } catch {
-      // Worker is optional for basic text extraction
-    }
+    // Set worker to undefined to disable it (Vercel can't load workers anyway)
+    pdf.GlobalWorkerOptions.workerSrc = undefined;
     
     // Use formidable to parse multipart forms
     const form = new IncomingForm({ 
@@ -48,7 +43,7 @@ export default async function handler(req, res) {
           // Convert buffer to Uint8Array as required by pdf.js
           const pdfData = new Uint8Array(pdfBuffer);
           
-          // Parse PDF
+          // Parse PDF (without worker)
           const pdfDoc = await pdf.getDocument({ data: pdfData }).promise;
           let extractedText = '';
           const pageCount = pdfDoc.numPages;
@@ -64,7 +59,6 @@ export default async function handler(req, res) {
               extractedText += pageText + '\n';
             } catch (e) {
               // Skip pages that fail to extract
-              console.error(`Failed to extract page ${i}:`, e.message);
             }
           }
           
