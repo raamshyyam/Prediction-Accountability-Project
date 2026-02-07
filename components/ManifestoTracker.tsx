@@ -34,7 +34,37 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
   const [uploadParty, setUploadParty] = useState('');
   const [uploadYear, setUploadYear] = useState(new Date().getFullYear());
   const [uploadContent, setUploadContent] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  const extractTextFromPDF = async (file: File): Promise<string> => {
+    // Simple fallback: show user the PDF was selected but requires manual extraction
+    // In production, you'd install pdfjs-dist: npm install pdfjs-dist
+    const fileName = file.name;
+    return `[Extracted from: ${fileName}]\n\nTo extract PDF content:\n1. Install dependency: npm install pdfjs-dist\n2. Or paste the PDF text manually below`;
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      alert(lang === 'ne' ? 'कृपया PDF फाइल चयन गर्नुहोस्' : 'Please select a PDF file');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const text = await extractTextFromPDF(file);
+      setUploadContent(text);
+      setUploadFile(file);
+    } catch (error) {
+      console.error('Error extracting PDF:', error);
+      alert(lang === 'ne' ? 'PDF पार्स गर्न त्रुटि' : 'Error parsing PDF. Please paste text manually.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleUploadManifesto = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,15 +166,54 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Manifesto Content *</label>
-                <textarea 
-                  required 
-                  rows={8} 
-                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-50 bg-slate-50 text-sm font-medium focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition-all" 
-                  value={uploadContent} 
-                  onChange={(e) => setUploadContent(e.target.value)}
-                  placeholder="Paste the manifesto text here. Important promises and commitments will be automatically extracted..."
-                />
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Manifesto Content * (PDF or Text)</label>
+                <div className="space-y-4">
+                  <div className="flex gap-3">
+                    <label className="flex-1 cursor-pointer">
+                      <div className="px-4 py-3 rounded-xl border-2 border-dashed border-purple-300 bg-purple-50 text-center hover:bg-purple-100 transition-all">
+                        <input 
+                          type="file" 
+                          accept=".pdf"
+                          onChange={handleFileSelect}
+                          disabled={isProcessing}
+                          className="hidden"
+                        />
+                        <p className="text-sm font-bold text-purple-700">
+                          {uploadFile ? `📄 ${uploadFile.name}` : '📤 Click to upload PDF'}
+                        </p>
+                      </div>
+                    </label>
+                    {uploadFile && (
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setUploadFile(null);
+                          setUploadContent('');
+                        }}
+                        className="px-4 py-3 rounded-xl bg-red-100 text-red-700 font-bold hover:bg-red-200 transition-all"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-slate-200"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="px-2 bg-white text-slate-500 font-bold">Or paste text</span>
+                    </div>
+                  </div>
+
+                  <textarea 
+                    rows={6} 
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-50 bg-slate-50 text-sm font-medium focus:border-purple-500 focus:ring-1 focus:ring-purple-200 outline-none transition-all" 
+                    value={uploadContent} 
+                    onChange={(e) => setUploadContent(e.target.value)}
+                    placeholder="Paste the manifesto text here if not uploading PDF..."
+                  />
+                </div>
               </div>
 
               <div className="bg-purple-50 rounded-2xl p-4 border border-purple-200">

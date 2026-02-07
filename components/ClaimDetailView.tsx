@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Claim, Language, Claimant, Status } from '../types.ts';
 import { translations } from '../translations.ts';
 import { generateVaguenessInsight, analyzeClaimDeeply } from '../services/geminiService.ts';
-import { isAIConfigured } from '../utils/aiConfig.ts';
+import { isAIConfigured, getAISetupInstructions } from '../utils/aiConfig.ts';
 
 interface ClaimDetailViewProps {
   claim: Claim;
@@ -24,7 +24,7 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
     
     // Skip AI loading if not configured
     if (!isAIConfigured()) {
-      setVaguenessInsight('AI analysis not available. Configure VITE_API_KEY to enable.');
+      setVaguenessInsight('🔌 AI not connected. Set VITE_API_KEY environment variable to enable analysis.');
       setLoading(false);
       return;
     }
@@ -295,12 +295,12 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Status</p>
               <p className={`text-lg font-black ${
-                claim.status === Status.FULFILLED ? 'text-green-600' :
-                claim.status === Status.DISPROVEN ? 'text-red-600' :
-                claim.status === Status.ONGOING ? 'text-blue-600' :
+                currentClaim.status === Status.FULFILLED ? 'text-green-600' :
+                currentClaim.status === Status.DISPROVEN ? 'text-red-600' :
+                currentClaim.status === Status.ONGOING ? 'text-blue-600' :
                 'text-slate-600'
-              }`}>{claim.status}</p>
-              {claim.status === Status.ONGOING && (
+              }`}>{currentClaim.status}</p>
+              {currentClaim.status === Status.ONGOING && (
                 <div className="mt-3 flex items-center gap-2 text-blue-600">
                   <div className="animate-spin w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full" />
                   <span className="text-xs font-bold">Monitoring in progress...</span>

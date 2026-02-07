@@ -9,10 +9,10 @@ interface HeaderProps {
   lang: Language;
   setLang: (lang: Language) => void;
   isAdmin?: boolean;
-  setIsAdmin?: (val: boolean) => void;
+  onLogout?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ searchQuery, onSearchChange, lang, setLang, isAdmin, setIsAdmin }) => {
+export const Header: React.FC<HeaderProps> = ({ searchQuery, onSearchChange, lang, setLang, isAdmin, onLogout }) => {
   const t = translations[lang];
 
   return (
@@ -66,12 +66,16 @@ export const Header: React.FC<HeaderProps> = ({ searchQuery, onSearchChange, lan
               <span className="text-xs font-black text-slate-700">{t.kathmandu}</span>
             </div>
             <div className="flex items-center gap-3">
-              <label className="text-xs text-slate-400">Admin</label>
+              {isAdmin && (
+                <span className="px-3 py-1 rounded-lg text-[10px] font-black bg-orange-100 text-orange-700">
+                  🔑 ADMIN
+                </span>
+              )}
               <button
-                onClick={() => setIsAdmin && setIsAdmin(!isAdmin)}
-                className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${isAdmin ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+                onClick={() => onLogout?.()}
+                className="px-3 py-2 rounded-lg text-[10px] font-black bg-slate-100 text-slate-700 hover:bg-red-100 hover:text-red-700 transition-all"
               >
-                {isAdmin ? 'ON' : 'OFF'}
+                Logout
               </button>
             </div>
           </div>

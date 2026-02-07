@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Header } from './components/Header.tsx';
+import { LoginModal } from './components/LoginModal.tsx';
 import { ClaimCard } from './components/ClaimCard.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
 import { AddClaimModal } from './components/AddClaimModal.tsx';
@@ -19,6 +20,7 @@ const CLAIMANTS_KEY = 'pap_claimants_v1';
 
 function App() {
   const [lang, setLang] = useState<Language>('en');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [claimants, setClaimants] = useState<Claimant[]>([]);
@@ -31,6 +33,20 @@ function App() {
   const [selectedClaimantProfile, setSelectedClaimantProfile] = useState<Claimant | null>(null);
 
   const t = translations[lang];
+
+  // Check authentication on mount
+  useEffect(() => {
+    const authData = localStorage.getItem('pap_auth');
+    if (authData) {
+      try {
+        const auth = JSON.parse(authData);
+        setIsAuthenticated(true);
+        setIsAdmin(auth.role === 'admin');
+      } catch (e) {
+        setIsAuthenticated(false);
+      }
+    }
+  }, []);
 
   // Log AI status on app mount
   useEffect(() => {
@@ -273,6 +289,19 @@ function App() {
     return text;
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('pap_auth');
+    setIsAuthenticated(false);
+    setIsAdmin(false);
+  };
+
+  if (!isAuthenticated) {
+    return <LoginModal lang={lang} onLoginSuccess={(adminFlag) => {
+      setIsAuthenticated(true);
+      setIsAdmin(adminFlag);
+    }} />;
+  }
+
   return (
     <div className={`min-h-screen transition-all duration-500 ${lang === 'ne' ? 'font-sans' : 'font-inter'}`}>
       <Header 
@@ -281,7 +310,7 @@ function App() {
         lang={lang}
         setLang={setLang}
         isAdmin={isAdmin}
-        setIsAdmin={setIsAdmin}
+        onLogout={handleLogout}
       />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

@@ -77,6 +77,19 @@ export const ClaimantProfile: React.FC<ClaimantProfileProps> = ({ claimant, clai
     setIsEditMode(false);
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Convert image to base64 for storage
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64String = event.target?.result as string;
+      setEditedClaimant({ ...editedClaimant, photoUrl: base64String });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleReloadBackground = async () => {
     setLoading(true);
     try {
@@ -101,11 +114,24 @@ export const ClaimantProfile: React.FC<ClaimantProfileProps> = ({ claimant, clai
         {/* Header */}
         <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-pink-600 p-8 flex justify-between items-start text-white z-10">
           <div className="flex items-start gap-4 flex-1">
-            <img 
-              src={editedClaimant.photoUrl || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(editedClaimant.name)} 
-              alt={editedClaimant.name} 
-              className="w-20 h-20 rounded-full border-4 border-white shadow-lg" 
-            />
+            <div className="relative group">
+              <img 
+                src={editedClaimant.photoUrl || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(editedClaimant.name)} 
+                alt={editedClaimant.name} 
+                className="w-20 h-20 rounded-full border-4 border-white shadow-lg" 
+              />
+              {isEditMode && (
+                <label className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                  <input 
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  <span className="text-white font-bold text-sm">📸</span>
+                </label>
+              )}
+            </div>
             <div>
               {isEditMode ? (
                 <input 
