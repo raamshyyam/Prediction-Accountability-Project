@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Claim, Language, Claimant, Status } from '../types.ts';
 import { translations } from '../translations.ts';
-import { generateVaguenessInsight } from '../services/geminiService.ts';
+import { generateVaguenessInsight, analyzeClaimDeeply } from '../services/geminiService.ts';
 import { isAIConfigured } from '../utils/aiConfig.ts';
 
 interface ClaimDetailViewProps {
@@ -17,6 +17,7 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
   const [vaguenessInsight, setVaguenessInsight] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [currentClaim, setCurrentClaim] = useState(claim);
 
   useEffect(() => {
     let isMounted = true;
@@ -37,7 +38,7 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
           setTimeout(() => reject(new Error('AI insight timeout')), 5000)
         );
         
-        const insightPromise = generateVaguenessInsight(claim.text, claim.vaguenessIndex);
+        const insightPromise = generateVaguenessInsight(currentClaim.text, currentClaim.vaguenessIndex);
         const insight = await Promise.race([insightPromise, timeoutPromise]) as string;
         
         if (isMounted) {
@@ -61,7 +62,36 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
     return () => {
       isMounted = false;
     };
-  }, [claim]);
+  }, [currentClaim.text, currentClaim.vaguenessIndex]);
+
+  const handleDeepAnalyze = async () => {
+    if (!currentClaim.text.trim()) return;
+    setLoading(true);
+    try {
+      const result = await analyzeClaimDeeply(currentClaim.text, lang);
+      if (result) {
+        const updatedClaim = {
+          ...currentClaim,
+          vaguenessIndex: result.vaguenessScore || currentClaim.vaguenessIndex,
+          analysisParams: result.analysisParams || currentClaim.analysisParams,
+          verificationVectors: result.verificationVectors || currentClaim.verificationVectors,
+          webEvidenceLinks: result.webEvidence || currentClaim.webEvidenceLinks
+        };
+        setCurrentClaim(updatedClaim);
+        if (onUpdateClaim) {
+          onUpdateClaim(updatedClaim);
+        }
+        // Reload the insight
+        const insight = await generateVaguenessInsight(currentClaim.text, result.vaguenessScore || currentClaim.vaguenessIndex);
+        setVaguenessInsight(insight);
+      }
+    } catch (err) {
+      console.error("Deep analysis failed", err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getVaguenessColor = (score: number) => {
     if (score >= 8) return 'from-red-500 to-orange-500';
@@ -83,7 +113,7 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
         <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 p-6 flex justify-between items-start text-white z-10">
           <div>
             <h2 className="text-2xl font-black mb-2">Claim Details</h2>
-            <p className="text-blue-100 text-sm">{claim.category}</p>
+            <p className="text-blue-100 text-sm">{currentClaim.category}</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -94,7 +124,7 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
           {/* Main Claim */}
           <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl p-6 border border-blue-200">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">The Claim</h3>
-            <p className="text-xl font-bold text-slate-900 leading-relaxed">{claim.text}</p>
+            <p className="text-xl font-bold text-slate-900 leading-relaxed">{currentClaim.text}</p>
           </div>
 
           {/* Claimant Info */}
@@ -129,11 +159,11 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
           {/* Vagueness Analysis */}
           <div className="space-y-4">
             <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Vagueness Analysis</h3>
-            <div className={`bg-gradient-to-r ${getVaguenessColor(claim.vaguenessIndex)} rounded-2xl p-6 text-white`}>
+            <div className={`bg-gradient-to-r ${getVaguenessColor(currentClaim.vaguenessIndex)} rounded-2xl p-6 text-white`}>
               <div className="flex items-end justify-between mb-4">
                 <div>
-                  <p className="text-4xl font-black">{claim.vaguenessIndex}/10</p>
-                  <p className="text-white/80 text-sm font-bold">{getVaguenessLabel(claim.vaguenessIndex)}</p>
+                  <p className="text-4xl font-black">{currentClaim.vaguenessIndex}/10</p>
+                  <p className="text-white/80 text-sm font-bold">{getVaguenessLabel(currentClaim.vaguenessIndex)}</p>
                 </div>
                 <div className="w-24 h-24 rounded-full flex items-center justify-center bg-white/20">
                   <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
@@ -141,18 +171,28 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
                   </svg>
                 </div>
               </div>
-              <p className="text-white/90 text-sm leading-relaxed">
+              <p className="text-white/90 text-sm leading-relaxed mb-4">
                 {loading ? 'Analyzing vagueness...' : vaguenessInsight || 'This claim contains several vague elements that make verification difficult.'}
               </p>
+              {isAIConfigured() && (
+                <button 
+                  onClick={handleDeepAnalyze} 
+                  disabled={loading}
+                  className="w-full mt-4 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 text-white font-bold rounded-lg transition-all text-sm flex items-center justify-center gap-2"
+                >
+                  {loading && <div className="animate-spin w-3 h-3 border-2 border-white/30 border-t-white rounded-full"/>}
+                  {loading ? 'Analyzing...' : 'Re-Analyze Vagueness'}
+                </button>
+              )}
             </div>
           </div>
 
           {/* Verification Parameters */}
-          {claim.analysisParams.length > 0 && (
+          {currentClaim.analysisParams && Array.isArray(currentClaim.analysisParams) && currentClaim.analysisParams.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Verifiability Parameters</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {claim.analysisParams.map((param, i) => (
+                {currentClaim.analysisParams.map((param, i) => (
                   <div key={i} className={`rounded-lg p-3 flex items-center gap-3 ${param.fulfilled ? 'bg-green-50 border border-green-200' : 'bg-slate-50 border border-slate-200'}`}>
                     <div className={`w-6 h-6 rounded flex items-center justify-center text-sm font-bold ${param.fulfilled ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-400'}`}>
                       {param.fulfilled ? '✓' : '○'}
@@ -167,11 +207,11 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
           )}
 
           {/* Verification Vectors */}
-          {claim.verificationVectors.length > 0 && (
+          {currentClaim.verificationVectors && Array.isArray(currentClaim.verificationVectors) && currentClaim.verificationVectors.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Verification Analysis Models</h3>
               <div className="space-y-4">
-                {claim.verificationVectors.map((vector, i) => (
+                {currentClaim.verificationVectors.map((vector, i) => (
                   <div key={i} className="border-l-4 border-blue-500 bg-slate-50 rounded-r-lg p-4">
                     <div className="flex justify-between items-start mb-2">
                       <h4 className="font-bold text-slate-800">{vector.modelName}</h4>
@@ -202,10 +242,10 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
             <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Sources & Evidence</h3>
             
             {/* Original Sources */}
-            {claim.sources.length > 0 && (
+            {currentClaim.sources && Array.isArray(currentClaim.sources) && currentClaim.sources.length > 0 && (
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">Claim Sources</h4>
-                {claim.sources.map((source, i) => (
+                {currentClaim.sources.map((source, i) => (
                   <a
                     key={i}
                     href={source.url}
@@ -226,10 +266,10 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
             )}
 
             {/* Web Evidence */}
-            {claim.webEvidenceLinks && claim.webEvidenceLinks.length > 0 && (
+            {currentClaim.webEvidenceLinks && Array.isArray(currentClaim.webEvidenceLinks) && currentClaim.webEvidenceLinks.length > 0 && (
               <div className="space-y-3">
                 <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">Related Evidence</h4>
-                {claim.webEvidenceLinks.map((evidence, i) => (
+                {currentClaim.webEvidenceLinks.map((evidence, i) => (
                   <a
                     key={i}
                     href={evidence.url}
@@ -270,17 +310,17 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Timeline</p>
               <div className="space-y-2 text-sm">
-                <p className="text-slate-700"><span className="font-bold">Made:</span> {claim.dateMade}</p>
-                <p className="text-slate-700"><span className="font-bold">Target:</span> {claim.targetDate}</p>
+                <p className="text-slate-700"><span className="font-bold">Made:</span> {currentClaim.dateMade}</p>
+                <p className="text-slate-700"><span className="font-bold">Target:</span> {currentClaim.targetDate}</p>
               </div>
             </div>
           </div>
 
-          {claim.history && claim.history.length > 0 && (
+          {currentClaim.history && Array.isArray(currentClaim.history) && currentClaim.history.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Claim History</h3>
               <div className="space-y-3">
-                {claim.history.map((version, i) => (
+                {currentClaim.history.map((version, i) => (
                   <div key={i} className="border-l-2 border-slate-300 pl-4 py-2">
                     <p className="text-[10px] font-bold text-slate-500 mb-1">{new Date(version.timestamp).toLocaleDateString()}</p>
                     <p className="text-sm text-slate-700 font-medium">{version.text}</p>

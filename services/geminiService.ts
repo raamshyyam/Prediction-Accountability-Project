@@ -1,21 +1,51 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
+let cachedAI: any = null;
+let apiKeyChecked = false;
+
 const getAI = () => {
+  if (cachedAI && apiKeyChecked) {
+    return cachedAI;
+  }
+
   // Access API key from Vite environment (requires VITE_ prefix for client-side)
-  const apiKey = (import.meta.env.VITE_API_KEY || process.env.VITE_API_KEY || '').trim();
+  let apiKey = '';
+  
+  // Try different sources for the API key
+  if (typeof import !== 'undefined' && import.meta) {
+    apiKey = (import.meta.env?.VITE_API_KEY || '').trim();
+  }
+  
+  if (!apiKey) {
+    apiKey = (process.env?.VITE_API_KEY || '').trim();
+  }
+  
+  if (!apiKey && typeof window !== 'undefined' && (window as any).__ENV__) {
+    apiKey = ((window as any).__ENV__.VITE_API_KEY || '').trim();
+  }
 
   if (!apiKey) {
     console.error("CRITICAL: Gemini API Key is missing. Set VITE_API_KEY in your Vercel environment variables or .env file.");
-    return new GoogleGenAI({ apiKey: 'dummy-key-for-error-handling' });
+    cachedAI = new GoogleGenAI({ apiKey: 'dummy-key-for-error-handling' });
+  } else {
+    console.log("✓ Gemini API Key configured");
+    cachedAI = new GoogleGenAI({ apiKey });
   }
   
-  return new GoogleGenAI({ apiKey });
+  apiKeyChecked = true;
+  return cachedAI;
 };
 
 export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 'en') => {
   try {
     const ai = getAI();
-    const response = await ai.models.generateContent({
+    
+    // Create a timeout promise
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Gemini API timeout - took longer than 15 seconds')), 15000);
+    });
+    
+    const analysisPromise = ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: `You are an expert claim verification system. Analyze this claim in depth.
 
@@ -74,7 +104,8 @@ Return ONLY valid JSON, no additional text.`,
         }
       }
     });
-
+    
+    const response = await Promise.race([analysisPromise, timeoutPromise]) as any;
     const text = response.text || '{}';
     const data = JSON.parse(text);
     
@@ -106,6 +137,14 @@ Return ONLY valid JSON, no additional text.`,
     };
   }
 };
+        { label: "Specific action/event", fulfilled: false },
+        { label: "Clear scope", fulfilled: false }
+      ],
+      verificationVectors: [],
+      webEvidence: []
+    };
+  }
+};
 
 export const discoverClaims = async (url: string) => {
   try {
@@ -126,23 +165,42 @@ Return JSON with claims array: [{ claimantName, claimText, category, targetDateE
 export const searchClaimantBackground = async (claimantName: string) => {
   try {
     const ai = getAI();
-    const response = await ai.models.generateContent({
+    
+    // Create a timeout promise (10 seconds for background search)
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Claimant background search timeout')), 10000);
+    });
+    
+    const searchPromise = ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: `Research this person: "${claimantName}"
       
 Return JSON with:
-- bio: Brief biography
-- knownPredictions: Array of past predictions/statements found
-- accuracyInfo: Any accuracy information found
-- affiliations: Known affiliations and organizations`,
+- bio: Brief biography (2-3 sentences max)
+- knownPredictions: Array of 2-3 past predictions/statements found (or empty if not found)
+- accuracyInfo: Any accuracy information found (or empty string)
+- affiliations: Known affiliations and organizations (comma separated or empty)
+- role: Their primary role/profession (politician, economist, journalist, etc.)
+
+Return ONLY valid JSON.`,
       config: {
         responseMimeType: "application/json"
       }
     });
-    return JSON.parse(response.text || '{}');
+    
+    const response = await Promise.race([searchPromise, timeoutPromise]) as any;
+    const result = JSON.parse(response.text || '{}');
+    
+    return {
+      bio: result.bio || '',
+      knownPredictions: Array.isArray(result.knownPredictions) ? result.knownPredictions : [],
+      accuracyInfo: result.accuracyInfo || '',
+      affiliations: Array.isArray(result.affiliations) ? result.affiliations : (typeof result.affiliations === 'string' ? [result.affiliations] : []),
+      role: result.role || 'Independent'
+    };
   } catch (e) {
-    console.error("Background search failed", e);
-    return { bio: '', knownPredictions: [], accuracyInfo: '', affiliations: [] };
+    console.warn("Background search failed", e);
+    return { bio: '', knownPredictions: [], accuracyInfo: '', affiliations: [], role: 'Independent' };
   }
 };
 

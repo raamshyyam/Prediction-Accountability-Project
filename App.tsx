@@ -6,11 +6,13 @@ import { Dashboard } from './components/Dashboard.tsx';
 import { AddClaimModal } from './components/AddClaimModal.tsx';
 import { ClaimDetailView } from './components/ClaimDetailView.tsx';
 import { ClaimantProfile } from './components/ClaimantProfile.tsx';
+import { ManifestoTracker } from './components/ManifestoTracker.tsx';
 import { MOCK_CLAIMS, MOCK_CLAIMANTS } from './constants.ts';
 import { Claim, Category, Language, Status, Claimant } from './types.ts';
 import { translations } from './translations.ts';
 import { getClaims, getClaimants, syncAllClaims, syncAllClaimants, saveClaim, saveClaimant } from './services/databaseService.ts';
 import { logAIStatus } from './utils/aiConfig.ts';
+import { searchClaimantBackground } from './services/geminiService.ts';
 
 const STORAGE_KEY = 'pap_claims_v1';
 const CLAIMANTS_KEY = 'pap_claimants_v1';
@@ -19,7 +21,7 @@ function App() {
   const [lang, setLang] = useState<Language>('en');
   const [claims, setClaims] = useState<Claim[]>([]);
   const [claimants, setClaimants] = useState<Claimant[]>([]);
-  const [activeTab, setActiveTab] = useState<'claims' | 'dashboard' | 'claimants'>('claims');
+  const [activeTab, setActiveTab] = useState<'claims' | 'dashboard' | 'claimants' | 'manifesto'>('claims');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editClaim, setEditClaim] = useState<Claim | null>(null);
@@ -183,17 +185,35 @@ function App() {
     } else {
       let claimant = claimants.find(c => c.name.toLowerCase() === newClaimData.claimantName.toLowerCase());
       if (!claimant) {
+        // Create new claimant with auto-detected role
         claimant = {
           id: `cl-${Date.now()}`,
           name: newClaimData.claimantName,
           bio: 'Recorded via PAP platform.',
-          affiliation: 'Independent',
+          affiliation: 'Independent', // Will be updated by AI if available
           photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(newClaimData.claimantName)}&background=random`,
           accuracyRate: 0,
           vaguenessScore: newClaimData.vaguenessIndex,
           totalClaims: 1,
           tags: [newClaimData.category]
         };
+        
+        // Try to auto-detect claimant info using AI
+        searchClaimantBackground(newClaimData.claimantName)
+          .then(backgroundInfo => {
+            if (backgroundInfo && backgroundInfo.role && backgroundInfo.role !== 'Independent') {
+              // Update claimant with AI-detected role
+              const updatedClaimant = {
+                ...claimant!,
+                affiliation: backgroundInfo.role,
+                bio: backgroundInfo.bio || claimant!.bio,
+                tags: [...new Set([...claimant!.tags, ...(backgroundInfo.affiliations || [])])]
+              };
+              setClaimants(prev => prev.map(c => c.id === updatedClaimant.id ? updatedClaimant : c));
+            }
+          })
+          .catch(err => console.warn('Claimant background detection failed:', err));
+        
         setClaimants(prev => [...prev, claimant!]);
       }
       
@@ -249,13 +269,16 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10">
           <div className="bg-white p-1.5 rounded-2xl border border-slate-200 inline-flex shadow-sm overflow-x-auto max-w-full">
-            {(['claims', 'claimants', 'dashboard'] as const).map((tab) => (
+            {(['claims', 'claimants', 'manifesto', 'dashboard'] as const).map((tab) => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`px-6 sm:px-8 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all whitespace-nowrap ${activeTab === tab ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' : 'text-slate-500 hover:text-slate-800'}`}
               >
-                {t[tab] || tab}
+                {tab === 'claims' && 'Claims'}
+                {tab === 'claimants' && 'Claimants'}
+                {tab === 'manifesto' && '📋 Manifestos'}
+                {tab === 'dashboard' && 'Dashboard'}
               </button>
             ))}
           </div>
@@ -312,6 +335,8 @@ function App() {
 
         {activeTab === 'dashboard' && <Dashboard claims={claims} lang={lang} onImport={handleImportData} />}
 
+        {activeTab === 'manifesto' && <ManifestoTracker lang={lang} />}
+
         {activeTab === 'claimants' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {claimants.map(claimant => (
@@ -357,6 +382,10 @@ function App() {
           claims={claims}
           lang={lang}
           onClose={() => setSelectedClaimantProfile(null)}
+          onUpdateClaimant={(updatedClaimant) => {
+            setClaimants(prev => prev.map(c => c.id === updatedClaimant.id ? updatedClaimant : c));
+            setSelectedClaimantProfile(updatedClaimant);
+          }}
         />
       )}
     </div>

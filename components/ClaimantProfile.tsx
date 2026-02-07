@@ -9,12 +9,15 @@ interface ClaimantProfileProps {
   claims: Claim[];
   lang: Language;
   onClose: () => void;
+  onUpdateClaimant?: (claimant: Claimant) => void;
 }
 
-export const ClaimantProfile: React.FC<ClaimantProfileProps> = ({ claimant, claims, lang, onClose }) => {
+export const ClaimantProfile: React.FC<ClaimantProfileProps> = ({ claimant, claims, lang, onClose, onUpdateClaimant }) => {
   const t = translations[lang];
   const [backgroundInfo, setBackgroundInfo] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedClaimant, setEditedClaimant] = useState<Claimant>(claimant);
 
   useEffect(() => {
     let isMounted = true;
@@ -29,12 +32,12 @@ export const ClaimantProfile: React.FC<ClaimantProfileProps> = ({ claimant, clai
     const loadBackground = async () => {
       setLoading(true);
       try {
-        // Add timeout: if AI call takes more than 5 seconds, skip it
+        // Add timeout: if AI call takes more than 10 seconds, skip it
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Background search timeout')), 5000)
+          setTimeout(() => reject(new Error('Background search timeout')), 10000)
         );
         
-        const infoPromise = searchClaimantBackground(claimant.name);
+        const infoPromise = searchClaimantBackground(editedClaimant.name);
         const info = await Promise.race([infoPromise, timeoutPromise]);
         
         if (isMounted) {
@@ -56,9 +59,9 @@ export const ClaimantProfile: React.FC<ClaimantProfileProps> = ({ claimant, clai
     return () => {
       isMounted = false;
     };
-  }, [claimant]);
+  }, [editedClaimant.name]);
 
-  const claimantClaims = claims.filter(c => c.claimantId === claimant.id);
+  const claimantClaims = claims.filter(c => c.claimantId === editedClaimant.id);
   const fulfilledCount = claimantClaims.filter(c => c.status === Status.FULFILLED).length;
   const disprovenCount = claimantClaims.filter(c => c.status === Status.DISPROVEN).length;
   const ongoingCount = claimantClaims.filter(c => c.status === Status.ONGOING).length;
@@ -67,6 +70,31 @@ export const ClaimantProfile: React.FC<ClaimantProfileProps> = ({ claimant, clai
     ? Math.round((fulfilledCount / claimantClaims.length) * 100) 
     : 0;
 
+  const handleSaveChanges = () => {
+    if (onUpdateClaimant) {
+      onUpdateClaimant(editedClaimant);
+    }
+    setIsEditMode(false);
+  };
+
+  const handleReloadBackground = async () => {
+    setLoading(true);
+    try {
+      const info = await searchClaimantBackground(editedClaimant.name);
+      if (info) {
+        setBackgroundInfo(info);
+        // Optionally update affiliation if not already set
+        if (info.role && editedClaimant.affiliation === 'Independent') {
+          setEditedClaimant({ ...editedClaimant, affiliation: info.role });
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to reload background:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
@@ -74,13 +102,31 @@ export const ClaimantProfile: React.FC<ClaimantProfileProps> = ({ claimant, clai
         <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-pink-600 p-8 flex justify-between items-start text-white z-10">
           <div className="flex items-start gap-4 flex-1">
             <img 
-              src={claimant.photoUrl || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(claimant.name)} 
-              alt={claimant.name} 
+              src={editedClaimant.photoUrl || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(editedClaimant.name)} 
+              alt={editedClaimant.name} 
               className="w-20 h-20 rounded-full border-4 border-white shadow-lg" 
             />
             <div>
-              <h2 className="text-2xl font-black mb-1">{claimant.name}</h2>
-              <p className="text-purple-100 mb-2">{claimant.affiliation}</p>
+              {isEditMode ? (
+                <input 
+                  type="text"
+                  value={editedClaimant.name}
+                  onChange={(e) => setEditedClaimant({ ...editedClaimant, name: e.target.value })}
+                  className="text-2xl font-black mb-1 bg-purple-700 text-white rounded px-2 py-1"
+                />
+              ) : (
+                <h2 className="text-2xl font-black mb-1">{editedClaimant.name}</h2>
+              )}
+              {isEditMode ? (
+                <input 
+                  type="text"
+                  value={editedClaimant.affiliation}
+                  onChange={(e) => setEditedClaimant({ ...editedClaimant, affiliation: e.target.value })}
+                  className="text-purple-100 mb-2 bg-purple-700 text-white rounded px-2 py-1 w-full"
+                />
+              ) : (
+                <p className="text-purple-100 mb-2">{editedClaimant.affiliation}</p>
+              )}
               <div className="flex gap-4">
                 <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold">
                   {claimantClaims.length} claims
@@ -91,30 +137,96 @@ export const ClaimantProfile: React.FC<ClaimantProfileProps> = ({ claimant, clai
               </div>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
+          <div className="flex gap-2">
+            {isEditMode ? (
+              <>
+                <button 
+                  onClick={() => setIsEditMode(false)} 
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  title="Cancel"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+                <button 
+                  onClick={handleSaveChanges} 
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  title="Save changes"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" /></svg>
+                </button>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => setIsEditMode(true)} 
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  title="Edit profile"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                </button>
+                <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="p-8 space-y-8">
           {/* Bio */}
-          {claimant.bio && (
+          {editedClaimant.bio && (
             <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl p-6 border border-blue-200">
               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Biography</h3>
-              <p className="text-slate-700 leading-relaxed">{claimant.bio}</p>
+              {isEditMode ? (
+                <textarea 
+                  value={editedClaimant.bio}
+                  onChange={(e) => setEditedClaimant({ ...editedClaimant, bio: e.target.value })}
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-blue-200 bg-blue-50 text-slate-700 font-medium leading-relaxed focus:outline-none focus:border-blue-500"
+                />
+              ) : (
+                <p className="text-slate-700 leading-relaxed">{editedClaimant.bio}</p>
+              )}
             </div>
           )}
 
           {/* Tags */}
-          {claimant.tags.length > 0 && (
+          {editedClaimant.tags.length > 0 && (
             <div>
               <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Expertise Areas</h3>
               <div className="flex flex-wrap gap-2">
-                {claimant.tags.map((tag, i) => (
-                  <span key={i} className="px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-black rounded-full">
-                    {tag}
-                  </span>
+                {editedClaimant.tags.map((tag, i) => (
+                  <div key={i} className="relative group">
+                    <span className="px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-black rounded-full">
+                      {tag}
+                    </span>
+                    {isEditMode && (
+                      <button
+                        onClick={() => setEditedClaimant({ ...editedClaimant, tags: editedClaimant.tags.filter((_, idx) => idx !== i) })}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remove tag"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
                 ))}
+                {isEditMode && (
+                  <input 
+                    type="text"
+                    placeholder="Add tag..."
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
+                        setEditedClaimant({ 
+                          ...editedClaimant, 
+                          tags: [...editedClaimant.tags, (e.target as HTMLInputElement).value.trim()] 
+                        });
+                        (e.target as HTMLInputElement).value = '';
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-black rounded-full border border-blue-300 focus:outline-none focus:border-blue-500"
+                  />
+                )}
               </div>
             </div>
           )}
@@ -122,18 +234,35 @@ export const ClaimantProfile: React.FC<ClaimantProfileProps> = ({ claimant, clai
           {/* Background Info from AI */}
           {backgroundInfo && (
             <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-200">
-              <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">AI Research Summary</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">AI Research Summary</h3>
+                {isAIConfigured() && !isEditMode && (
+                  <button 
+                    onClick={handleReloadBackground}
+                    disabled={loading}
+                    className="text-xs font-bold text-amber-600 hover:text-amber-700 disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {loading && <div className="animate-spin w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full"/>}
+                    Reload
+                  </button>
+                )}
+              </div>
               {backgroundInfo.bio && (
                 <p className="text-sm text-slate-700 mb-4">{backgroundInfo.bio}</p>
               )}
               {backgroundInfo.affiliations && backgroundInfo.affiliations.length > 0 && (
                 <p className="text-xs text-slate-600 mb-3">
-                  <span className="font-bold">Affiliations:</span> {backgroundInfo.affiliations.join(', ')}
+                  <span className="font-bold">Affiliations:</span> {Array.isArray(backgroundInfo.affiliations) ? backgroundInfo.affiliations.join(', ') : backgroundInfo.affiliations}
                 </p>
               )}
               {backgroundInfo.accuracyInfo && (
                 <p className="text-xs text-slate-600">
                   <span className="font-bold">Accuracy Info:</span> {backgroundInfo.accuracyInfo}
+                </p>
+              )}
+              {backgroundInfo.role && (
+                <p className="text-xs text-slate-600 mt-3">
+                  <span className="font-bold">Detected Role:</span> {backgroundInfo.role}
                 </p>
               )}
             </div>
@@ -223,13 +352,30 @@ export const ClaimantProfile: React.FC<ClaimantProfileProps> = ({ claimant, clai
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-slate-100 p-6 border-t border-slate-200">
-          <button
-            onClick={onClose}
-            className="w-full px-6 py-3 bg-slate-200 text-slate-800 font-black rounded-xl hover:bg-slate-300 transition-all"
-          >
-            Close Profile
-          </button>
+        <div className="sticky bottom-0 bg-slate-100 p-6 border-t border-slate-200 flex gap-3">
+          {isEditMode ? (
+            <>
+              <button
+                onClick={() => setIsEditMode(false)}
+                className="flex-1 px-6 py-3 bg-slate-200 text-slate-800 font-black rounded-xl hover:bg-slate-300 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveChanges}
+                className="flex-1 px-6 py-3 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 transition-all"
+              >
+                Save Changes
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={onClose}
+              className="w-full px-6 py-3 bg-slate-200 text-slate-800 font-black rounded-xl hover:bg-slate-300 transition-all"
+            >
+              Close Profile
+            </button>
+          )}
         </div>
       </div>
     </div>
