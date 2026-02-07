@@ -2,108 +2,51 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
+console.log("[PAP] 1: Module starting to execute...");
+
+// Create a simple inline app directly to test if imports are the problem
+function SimpleApp() {
+  return (
+    <div style={{ minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0fdf4', fontFamily: 'sans-serif' }}>
+      <div style={{ maxWidth: '500px', textAlign: 'center', padding: '40px' }}>
+        <h1 style={{ fontSize: '2em', fontWeight: 'bold', color: '#166534', marginBottom: '20px' }}>✅ SUCCESS!</h1>
+        <p style={{ fontSize: '1.1em', color: '#15803d', marginBottom: '30px' }}>Inline app is loading correctly.</p>
+        <p style={{ color: '#64748b', marginBottom: '20px' }}>The module loading and React initialization is working fine.</p>
+        <p style={{ color: '#94a3b8', fontSize: '0.9em' }}>Now testing if the issue is with component imports...</p>
+        <button onClick={() => location.reload()} style={{ marginTop: '20px', padding: '10px 20px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>
+          Reload
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const rootElement = document.getElementById('root');
 
 if (!rootElement) {
-  console.error("Critical Error: Root element not found in index.html");
+  console.error("[PAP] CRITICAL: Root element not found!");
 } else {
   try {
-    console.log("[PAP] 1: Starting React app initialization...");
+    console.log("[PAP] 2: Found root element, creating React root...");
+    const root = ReactDOM.createRoot(rootElement);
     
-    // Set a timeout to force fallback UI if React doesn't render in 5 seconds
-    const timeoutId = setTimeout(() => {
-      console.warn("[PAP] TIMEOUT: React app took too long to load (>10s)");
-      if (rootElement.innerHTML.includes("Initializing")) {
-        rootElement.innerHTML = `
-          <div style="width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; font-family: sans-serif;">
-            <div style="max-width: 500px; padding: 40px; text-align: center;">
-              <h1 style="color: #1e293b; margin-bottom: 20px;">⏱️ Timeout</h1>
-              <p style="color: #64748b; margin-bottom: 30px;">The app is taking longer than expected to load.</p>
-              <div style="background: white; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 20px; text-align: left;">
-                <p style="color: #0ea5e9; font-weight: 600; margin-bottom: 10px;">Debug Info:</p>
-                <code style="display: block; background: #f1f5f9; padding: 10px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; word-break: break-all; color: #334155;">
-Check browser console for error messages.
-Root element found: ${!!rootElement}
-HTML state: Module loading took >3 seconds
-                </code>
-              </div>
-              <button onclick="location.reload()" style="padding: 10px 20px; background: #0ea5e9; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                Refresh Page
-              </button>
-            </div>
-          </div>
-        `;
-      }
-    }, 10000);  // 10 second timeout
+    console.log("[PAP] 3: Clearing spinner HTML...");
+    rootElement.innerHTML = '';
     
-    // Log before loading
-    console.log("[PAP] 2: About to import App module...");
+    console.log("[PAP] 4: Rendering SimpleApp...");
+    root.render(
+      React.createElement(SimpleApp)
+    );
     
-    // Dynamically import App to catch import errors
-    import('./AppMinimal.tsx').then((module) => {
-      console.log("[PAP] 3: App module imported successfully");
-      clearTimeout(timeoutId);
-      const App = module.default;
-      
-      try {
-        console.log("[PAP] 4: Creating React root...");
-        const root = ReactDOM.createRoot(rootElement);
-        console.log("[PAP] 5: React root created, clearing spinner...");
-        
-        // Clear loading spinner immediately
-        rootElement.innerHTML = '';
-        
-        console.log("[PAP] 6: Rendering App component...");
-        root.render(
-          React.createElement(App)  // Removed StrictMode to reduce overhead
-        );
-        console.log("[PAP] 7: PAP Application successfully mounted!");
-      } catch (renderError) {
-        clearTimeout(timeoutId);
-        console.error("[PAP] ERROR during render:", renderError);
-        rootElement.innerHTML = `
-          <div style="width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; background: #fee2e2; font-family: sans-serif;">
-            <div style="max-width: 600px; padding: 40px; background: white; border-radius: 12px; border: 1px solid #fecaca;">
-              <h1 style="color: #991b1b; margin-bottom: 15px;">❌ Render Error</h1>
-              <p style="color: #7f1d1d; margin-bottom: 10px;"><strong>Message:</strong> ${renderError.message}</p>
-              <p style="color: #7f1d1d; margin-bottom: 10px;"><strong>Stack:</strong></p>
-              <pre style="background: #fef2f2; padding: 15px; border-radius: 6px; overflow-x: auto; font-size: 11px; color: #7f1d1d; max-height: 200px; white-space: pre-wrap; word-break: break-all;">${renderError.stack}</pre>
-              <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #dc2626; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                Reload Page
-              </button>
-            </div>
-          </div>
-        `;
-      }
-    }).catch((importError) => {
-      clearTimeout(timeoutId);
-      console.error("[PAP] ERROR during import:", importError);
-      rootElement.innerHTML = `
-        <div style="width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; background: #fef3c7; font-family: sans-serif;">
-          <div style="max-width: 600px; padding: 40px; background: white; border-radius: 12px; border: 1px solid #fcd34d;">
-            <h1 style="color: #92400e; margin-bottom: 15px;">⚠️ Module Import Error</h1>
-            <p style="color: #78350f; margin-bottom: 10px;"><strong>Message:</strong> ${importError.message}</p>
-            <p style="color: #78350f; margin-bottom: 10px;"><strong>Stack:</strong></p>
-            <pre style="background: #fffbeb; padding: 15px; border-radius: 6px; overflow-x: auto; font-size: 11px; color: #78350f; max-height: 200px; white-space: pre-wrap; word-break: break-all;">${importError.stack}</pre>
-            <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #f59e0b; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-              Reload Page
-            </button>
-          </div>
-        </div>
-      `;
-    });
-    console.log("[PAP] 2.5: Import call initiated...");
+    console.log("[PAP] 5: SimpleApp rendered successfully!");
   } catch (error) {
-    console.error("[PAP] FATAL ERROR in initialization:", error);
+    console.error("[PAP] ERROR:", error);
     rootElement.innerHTML = `
-      <div style="width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; background: #dbeafe; font-family: sans-serif;">
-        <div style="max-width: 600px; padding: 40px; background: white; border-radius: 12px; border: 1px solid #bfdbfe;">
-          <h1 style="color: #1e40af; margin-bottom: 15px;">❗ Initialization Error</h1>
-          <p style="color: #1e3a8a; margin-bottom: 10px;"><strong>Error:</strong> ${error.message}</p>
-          <pre style="background: #eff6ff; padding: 15px; border-radius: 6px; overflow-x: auto; font-size: 11px; color: #1e3a8a; white-space: pre-wrap; word-break: break-all;">${error.stack}</pre>
-          <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-            Reload Page
-          </button>
+      <div style="width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; background: #fee2e2; font-family: sans-serif;">
+        <div style="max-width: 500px; padding: 40px; text-align: center;">
+          <h1 style="color: #991b1b;">❌ Render Error</h1>
+          <p style="color: #7f1d1d; margin-bottom: 20px;">${error.message}</p>
+          <p style="color: #7f1d1d; font-size: 0.9em;">Check browser console for more details</p>
         </div>
       </div>
     `;
