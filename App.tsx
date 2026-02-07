@@ -57,78 +57,41 @@ function App() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // PRIORITY 1: Try Firebase first (persistent source) with timeout
+        // For now, skip Firebase and use localStorage + mock data directly
+        // This prevents any Firebase blocking issues
+        
         let claimsLoaded = false;
         let claimantsLoaded = false;
         
-        // Helper to add timeout to promises
-        const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
-          return Promise.race([
-            promise,
-            new Promise<T>((_, reject) => 
-              setTimeout(() => reject(new Error('Firebase timeout')), timeoutMs)
-            )
-          ]);
-        };
-        
-        try {
-          const firebaseClaims = await withTimeout(getClaims(), 5000); // 5 second timeout
-          console.log('Firebase claims loaded:', firebaseClaims.length);
-          if (firebaseClaims.length > 0) {
-            setClaims(firebaseClaims);
-            // Also save to localStorage as backup
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(firebaseClaims));
-            claimsLoaded = true;
-          }
-        } catch (fbError) {
-          console.warn('Firebase claims fetch failed or timed out:', fbError);
-        }
-        
-        try {
-          const firebaseClaimants = await withTimeout(getClaimants(), 5000); // 5 second timeout
-          console.log('Firebase claimants loaded:', firebaseClaimants.length);
-          if (firebaseClaimants.length > 0) {
-            setClaimants(firebaseClaimants);
-            // Also save to localStorage as backup
-            localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(firebaseClaimants));
-            claimantsLoaded = true;
-          }
-        } catch (fbError) {
-          console.warn('Firebase claimants fetch failed or timed out:', fbError);
-        }
-        
-        // PRIORITY 2: If Firebase didn't return data, try localStorage
-        if (!claimsLoaded) {
-          const savedClaims = localStorage.getItem(STORAGE_KEY);
-          if (savedClaims) {
-            try {
-              const parsed = JSON.parse(savedClaims);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                setClaims(parsed);
-                claimsLoaded = true;
-              }
-            } catch (e) {
-              console.error("Failed to parse saved claims:", e);
+        // Try localStorage first for claims
+        const savedClaims = localStorage.getItem(STORAGE_KEY);
+        if (savedClaims) {
+          try {
+            const parsed = JSON.parse(savedClaims);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setClaims(parsed);
+              claimsLoaded = true;
             }
+          } catch (e) {
+            console.error("Failed to parse saved claims:", e);
           }
         }
         
-        if (!claimantsLoaded) {
-          const savedClaimants = localStorage.getItem(CLAIMANTS_KEY);
-          if (savedClaimants) {
-            try {
-              const parsed = JSON.parse(savedClaimants);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                setClaimants(parsed);
-                claimantsLoaded = true;
-              }
-            } catch (e) {
-              console.error("Failed to parse saved claimants:", e);
+        // Try localStorage for claimants
+        const savedClaimants = localStorage.getItem(CLAIMANTS_KEY);
+        if (savedClaimants) {
+          try {
+            const parsed = JSON.parse(savedClaimants);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setClaimants(parsed);
+              claimantsLoaded = true;
             }
+          } catch (e) {
+            console.error("Failed to parse saved claimants:", e);
           }
         }
         
-        // PRIORITY 3: Fall back to mock data only if nothing else worked
+        // Fall back to mock data if nothing loaded
         if (!claimsLoaded) {
           console.log('Using mock claims as fallback');
           setClaims(MOCK_CLAIMS);
@@ -138,13 +101,38 @@ function App() {
           console.log('Using mock claimants as fallback');
           setClaimants(MOCK_CLAIMANTS);
         }
-      } catch (e) {
-        console.error("Unexpected error loading data:", e);
+        
+        // Optionally try Firebase in the background (non-blocking)
+        setTimeout(async () => {
+          try {
+            const firebaseClaims = await getClaims();
+            if (firebaseClaims.length > 0) {
+              setClaims(firebaseClaims);
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(firebaseClaims));
+            }
+          } catch (fbError) {
+            console.warn('Firebase claims fetch failed:', fbError);
+          }
+          
+          try {
+            const firebaseClaimants = await getClaimants();
+            if (firebaseClaimants.length > 0) {
+              setClaimants(firebaseClaimants);
+              localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(firebaseClaimants));
+            }
+          } catch (fbError) {
+            console.warn('Firebase claimants fetch failed:', fbError);
+          }
+        }, 5000); // Try Firebase after 5 seconds
+        
+      } catch (err) {
+        console.error('Error in loadData:', err);
+        // Ensure we always have mock data as absolute fallback
         setClaims(MOCK_CLAIMS);
         setClaimants(MOCK_CLAIMANTS);
       }
     };
-    
+
     loadData();
   }, []);
 
