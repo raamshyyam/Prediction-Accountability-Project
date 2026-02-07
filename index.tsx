@@ -10,9 +10,9 @@ if (!rootElement) {
   try {
     console.log("[PAP] 1: Starting React app initialization...");
     
-    // Set a timeout to force fallback UI if React doesn't render in 3 seconds
+    // Set a timeout to force fallback UI if React doesn't render in 5 seconds
     const timeoutId = setTimeout(() => {
-      console.warn("[PAP] TIMEOUT: React app took too long to load (>3s)");
+      console.warn("[PAP] TIMEOUT: React app took too long to load (>10s)");
       if (rootElement.innerHTML.includes("Initializing")) {
         rootElement.innerHTML = `
           <div style="width: 100vw; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc; font-family: sans-serif;">
@@ -34,7 +34,7 @@ HTML state: Module loading took >3 seconds
           </div>
         `;
       }
-    }, 3000);
+    }, 10000);  // 10 second timeout
     
     // Log before loading
     console.log("[PAP] 2: About to import App module...");
