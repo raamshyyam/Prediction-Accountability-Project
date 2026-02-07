@@ -63,28 +63,50 @@ function App() {
         let claimsLoaded = false;
         let claimantsLoaded = false;
         
-        // Try localStorage first for claims
-        const savedClaims = localStorage.getItem(STORAGE_KEY);
+        // Try localStorage first for claims - check multiple possible keys
+        const claimsKeys = ['pap_claims_v1', 'pap_claims', 'claims', 'claimData', 'CLAIMS'];
+        let savedClaims = null;
+        for (const key of claimsKeys) {
+          const data = localStorage.getItem(key);
+          if (data) {
+            console.log(`Found claims data under key: ${key}`);
+            savedClaims = data;
+            break;
+          }
+        }
+        
         if (savedClaims) {
           try {
             const parsed = JSON.parse(savedClaims);
             if (Array.isArray(parsed) && parsed.length > 0) {
               setClaims(parsed);
               claimsLoaded = true;
+              console.log(`✅ Loaded ${parsed.length} claims from localStorage`);
             }
           } catch (e) {
             console.error("Failed to parse saved claims:", e);
           }
         }
         
-        // Try localStorage for claimants
-        const savedClaimants = localStorage.getItem(CLAIMANTS_KEY);
+        // Try localStorage for claimants - check multiple possible keys
+        const claimantsKeys = ['pap_claimants_v1', 'pap_claimants', 'claimants', 'claimantData', 'CLAIMANTS'];
+        let savedClaimants = null;
+        for (const key of claimantsKeys) {
+          const data = localStorage.getItem(key);
+          if (data) {
+            console.log(`Found claimants data under key: ${key}`);
+            savedClaimants = data;
+            break;
+          }
+        }
+        
         if (savedClaimants) {
           try {
             const parsed = JSON.parse(savedClaimants);
             if (Array.isArray(parsed) && parsed.length > 0) {
               setClaimants(parsed);
               claimantsLoaded = true;
+              console.log(`✅ Loaded ${parsed.length} claimants from localStorage`);
             }
           } catch (e) {
             console.error("Failed to parse saved claimants:", e);
