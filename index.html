@@ -21,6 +21,18 @@
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         @keyframes spin { to { transform: rotate(360deg); } }
     </style>
+    <script>
+      console.log('[PAP] HTML loaded, wating for JavaScript...');
+      window.addEventListener('error', (event) => {
+        console.error('[PAP] Global error:', event.error);
+      });
+      setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.innerHTML.includes('Initializing')) {
+          root.innerHTML = '<div style="width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;background:#f8fafc;font-family:sans-serif"><div style="max-width:500px;padding:40px;text-align:center"><h2 style="color:#1e293b">⏱️ TIMEOUT</h2><p style="color:#64748b">Script failed to load. Code: Check console (F12)</p><button onclick="location.reload()" style="padding:10px 20px;background:#3b82f6;color:white;border:none;border-radius:6px;cursor:pointer">Reload</button></div></div>';
+        }
+      }, 15000);
+    </script>
 
 </head>
 <body>
