@@ -12,11 +12,10 @@ const getAI = () => {
   let apiKey = '';
   
   // Try different sources for the API key
-  if (typeof import !== 'undefined' && import.meta) {
+  try {
     apiKey = (import.meta.env?.VITE_API_KEY || '').trim();
-  }
-  
-  if (!apiKey) {
+  } catch (e) {
+    // import.meta not available, try process.env
     apiKey = (process.env?.VITE_API_KEY || '').trim();
   }
   
