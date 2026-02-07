@@ -4,16 +4,17 @@ export default async function handler(req, res) {
   try {
     const { IncomingForm } = await import('formidable');
     const fs = await import('fs');
-    const { fileURLToPath } = await import('url');
-    const { dirname } = await import('path');
     
     // Import pdf.js
     const pdf = (await import('pdfjs-dist/legacy/build/pdf.js')).default;
     
-    // Configure worker
-    const __dirname = dirname(fileURLToPath(import.meta.url));
-    const workerPath = __dirname.replace(/\\/g, '/') + '/../node_modules/pdfjs-dist/legacy/build/pdf.worker.js';
-    pdf.GlobalWorkerOptions.workerSrc = workerPath;
+    // Use a CDN for the worker (Vercel's /var/task filesystem is read-only for node_modules)
+    // Fallback to building without a worker if needed
+    try {
+      pdf.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    } catch {
+      // Worker is optional for basic text extraction
+    }
     
     // Use formidable to parse multipart forms
     const form = new IncomingForm({ 
@@ -54,15 +55,16 @@ export default async function handler(req, res) {
           
           // Extract text from all pages (limit to first 50 pages for performance)
           for (let i = 1; i <= Math.min(pageCount, 50); i++) {
-            const page = await pdfDoc.getPage(i);
             try {
+              const page = await pdfDoc.getPage(i);
               const content = await page.getTextContent();
               const pageText = content.items
                 .map(item => (item.str || ''))
                 .join('');
               extractedText += pageText + '\n';
-            } catch {
+            } catch (e) {
               // Skip pages that fail to extract
+              console.error(`Failed to extract page ${i}:`, e.message);
             }
           }
           
