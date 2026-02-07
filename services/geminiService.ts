@@ -136,14 +136,6 @@ Return ONLY valid JSON, no additional text.`,
     };
   }
 };
-        { label: "Specific action/event", fulfilled: false },
-        { label: "Clear scope", fulfilled: false }
-      ],
-      verificationVectors: [],
-      webEvidence: []
-    };
-  }
-};
 
 export const discoverClaims = async (url: string) => {
   try {
