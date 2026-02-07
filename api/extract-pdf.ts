@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 // Busboy may be CJS; require it safely at runtime
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const BusboyModule = require('busboy');
-const Busboy = (BusboyModule && BusboyModule.default) ? BusboyModule.default : BusboyModule;
+const Busboy = BusboyModule && (BusboyModule.Busboy || BusboyModule.default) ? (BusboyModule.Busboy || BusboyModule.default) : BusboyModule;
 import pdf from 'pdf-parse';
 import fs from 'fs';
 import path from 'path';
