@@ -40,7 +40,7 @@ HTML state: Module loading took >3 seconds
     console.log("[PAP] 2: About to import App module...");
     
     // Dynamically import App to catch import errors
-    import('./App.tsx').then((module) => {
+    import('./AppMinimal.tsx').then((module) => {
       console.log("[PAP] 3: App module imported successfully");
       clearTimeout(timeoutId);
       const App = module.default;
