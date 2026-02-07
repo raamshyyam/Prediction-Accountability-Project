@@ -14,6 +14,16 @@ const isFirebaseConfigured = () => {
   }
 };
 
+// Safe ref creation that doesn't throw
+const safeRef = (path: string) => {
+  if (!database) return null;
+  try {
+    return ref(database, path);
+  } catch {
+    return null;
+  }
+};
+
 // Claims operations
 export const saveClaim = async (claim: Claim): Promise<boolean> => {
   if (!isFirebaseConfigured()) return false;

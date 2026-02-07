@@ -14,17 +14,10 @@ const firebaseConfig = {
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || process.env.FIREBASE_DATABASE_URL || ""
 };
 
-// Debug log
-console.log('Firebase Config:', {
-  projectId: firebaseConfig.projectId,
-  databaseURL: firebaseConfig.databaseURL,
-  hasApiKey: !!firebaseConfig.apiKey
-});
-
 // Lazy initialization - only initialize if config values are provided
+let initialized = false;
 let app: any = null;
 let database: any = null;
-let initialized = false;
 
 const initializeFirebase = () => {
   if (initialized) return;
@@ -33,6 +26,7 @@ const initializeFirebase = () => {
   // Only initialize if we have a projectId
   if (firebaseConfig.projectId && firebaseConfig.projectId.trim()) {
     try {
+      console.log('Initializing Firebase with projectId:', firebaseConfig.projectId);
       app = initializeApp(firebaseConfig);
       database = getDatabase(app);
       console.log('Firebase initialized successfully');
@@ -42,14 +36,21 @@ const initializeFirebase = () => {
       database = null;
     }
   } else {
-    console.warn('Firebase config incomplete, skipping initialization');
+    console.warn('Firebase config incomplete - projectId missing or empty');
     app = null;
     database = null;
   }
 };
 
-// Initialize on first import, but don't block
-setTimeout(initializeFirebase, 0);
+// Schedule initialization but don't block module loading
+if (typeof window !== 'undefined') {
+  // Use requestIdleCallback if available, otherwise setTimeout
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(() => initializeFirebase());
+  } else {
+    setTimeout(initializeFirebase, 100);
+  }
+}
 
 export { app, database };
 
