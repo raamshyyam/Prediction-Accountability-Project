@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
 let cachedAI: any = null;
 let apiKeyChecked = false;
@@ -36,14 +36,61 @@ const getAI = () => {
 };
 
 export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 'en') => {
+  // If API key isn't available, return a local heuristic analysis
+  const hasApiKey = (() => {
+    try {
+      const k = (import.meta.env?.VITE_API_KEY || '').trim();
+      if (k && k !== 'YOUR_GEMINI_API_KEY_HERE') return true;
+    } catch (e) {}
+    try {
+      // runtime fallback
+      if (typeof (window as any) !== 'undefined' && (window as any).__ENV__ && (window as any).__ENV__.VITE_API_KEY) return true;
+    } catch (e) {}
+    return false;
+  })();
+
+  const heuristicVagueness = (text: string) => {
+    if (!text || !text.trim()) return 5;
+    const len = text.length;
+    const numbers = (text.match(/\d{3,}|\d+/g) || []).length;
+    const dates = (/\b(19|20)\d{2}\b/.test(text) ? 1 : 0) + (/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.test(text) ? 1 : 0);
+    const named = /[A-Z][a-z]+\s[A-Z][a-z]+/.test(text) ? 1 : 0;
+    // lower vagueness (clearer) if numbers/dates/names present
+    let score = 10 - Math.min(8, numbers + dates + named + Math.round(len / 140));
+    if (score < 1) score = 1;
+    if (score > 10) score = 10;
+    return score;
+  };
+
+  if (!hasApiKey) {
+    const score = heuristicVagueness(claimText);
+    const basicParams = [
+      { label: 'Has specific date', fulfilled: /\b(19|20)\d{2}\b/.test(claimText) },
+      { label: 'Named actors/people', fulfilled: /[A-Z][a-z]+\s[A-Z][a-z]+/.test(claimText) },
+      { label: 'Quantified metrics', fulfilled: /\d+/.test(claimText) },
+      { label: 'Geographic location', fulfilled: /\b(Kathmandu|Nepal|Province|District|\b[A-Z][a-z]+\b)\b/.test(claimText) },
+      { label: 'Clear causality', fulfilled: /because|due to|result in|lead to/i.test(claimText) },
+      { label: 'Falsifiable', fulfilled: /will|shall|is expected to|aim to/i.test(claimText) },
+      { label: 'Time-bound', fulfilled: /(by\s+\d{4}|within\s+\d+)/i.test(claimText) },
+      { label: 'Measurable outcome', fulfilled: /percent|%|number of|increase|decrease|more than/i.test(claimText) },
+      { label: 'Specific action/event', fulfilled: /build|construct|pass|approve|launch|open/i.test(claimText) },
+      { label: 'Clear scope', fulfilled: /.{0,}/.test(claimText) }
+    ];
+    return {
+      vaguenessScore: Math.round(score),
+      analysisParams: basicParams,
+      verificationVectors: [],
+      webEvidence: []
+    };
+  }
+
   try {
     const ai = getAI();
-    
     // Create a timeout promise
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Gemini API timeout - took longer than 15 seconds')), 15000);
     });
-    
+
     const analysisPromise = ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: `You are an expert claim verification system. Analyze this claim in depth.
@@ -52,63 +99,20 @@ Claim: "${claimText}"
 Language: ${lang === 'ne' ? 'Nepali' : 'English'}
 
 Provide a detailed JSON analysis with:
-1. Vagueness Score (1-10): How vague/unclear is this claim?
-2. 10 Verifiability Parameters with true/false values (e.g., "Has specific date", "Named actors", "Quantified metrics", etc.)
-3. 3 Verification Vectors from different models (Economic Analyst, Political Fact-Checker, Logical Consistency Bot)
-4. Web Evidence links for supporting/refuting information
+1. vaguenessScore: number (1-10)
+2. analysisParams: array of {label, fulfilled}
+3. verificationVectors: array of {modelName, verdict, confidence, reasoning}
+4. webEvidence: array of {title, url}
 
 Return ONLY valid JSON, no additional text.`,
       config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            vaguenessScore: { type: Type.NUMBER },
-            analysisParams: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  label: { type: Type.STRING },
-                  fulfilled: { type: Type.BOOLEAN }
-                },
-                required: ["label", "fulfilled"]
-              }
-            },
-            verificationVectors: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  modelName: { type: Type.STRING },
-                  verdict: { type: Type.STRING },
-                  confidence: { type: Type.NUMBER },
-                  reasoning: { type: Type.STRING }
-                },
-                required: ["modelName", "verdict", "confidence", "reasoning"]
-              }
-            },
-            webEvidence: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING },
-                  url: { type: Type.STRING }
-                }
-              }
-            }
-          },
-          required: ["vaguenessScore", "analysisParams", "verificationVectors"]
-        }
+        responseMimeType: 'application/json'
       }
     });
-    
+
     const response = await Promise.race([analysisPromise, timeoutPromise]) as any;
     const text = response.text || '{}';
     const data = JSON.parse(text);
-    
-    // Ensure we have the right structure
     return {
       vaguenessScore: Math.round(data.vaguenessScore || 5),
       analysisParams: Array.isArray(data.analysisParams) ? data.analysisParams.slice(0, 10) : [],
@@ -116,24 +120,60 @@ Return ONLY valid JSON, no additional text.`,
       webEvidence: Array.isArray(data.webEvidence) ? data.webEvidence : []
     };
   } catch (e) {
-    console.error("Analysis failed", e);
+    console.error('Analysis failed', e);
     return {
       vaguenessScore: 5,
       analysisParams: [
-        { label: "Has specific date", fulfilled: false },
-        { label: "Named actors/people", fulfilled: false },
-        { label: "Quantified metrics", fulfilled: false },
-        { label: "Geographic location", fulfilled: false },
-        { label: "Clear causality", fulfilled: false },
-        { label: "Falsifiable", fulfilled: false },
-        { label: "Time-bound", fulfilled: false },
-        { label: "Measurable outcome", fulfilled: false },
-        { label: "Specific action/event", fulfilled: false },
-        { label: "Clear scope", fulfilled: false }
+        { label: 'Has specific date', fulfilled: false },
+        { label: 'Named actors/people', fulfilled: false },
+        { label: 'Quantified metrics', fulfilled: false },
+        { label: 'Geographic location', fulfilled: false },
+        { label: 'Clear causality', fulfilled: false },
+        { label: 'Falsifiable', fulfilled: false },
+        { label: 'Time-bound', fulfilled: false },
+        { label: 'Measurable outcome', fulfilled: false },
+        { label: 'Specific action/event', fulfilled: false },
+        { label: 'Clear scope', fulfilled: false }
       ],
       verificationVectors: [],
       webEvidence: []
     };
+  }
+};
+
+export const extractManifestoClaims = async (text: string, lang: 'en' | 'ne' = 'en') => {
+  // If no API key, do a simple sentence-splitting heuristic
+  const hasApiKey = (() => {
+    try {
+      const k = (import.meta.env?.VITE_API_KEY || '').trim();
+      if (k && k !== 'YOUR_GEMINI_API_KEY_HERE') return true;
+    } catch (e) {}
+    try {
+      if (typeof (window as any) !== 'undefined' && (window as any).__ENV__ && (window as any).__ENV__.VITE_API_KEY) return true;
+    } catch (e) {}
+    return false;
+  })();
+
+  if (!hasApiKey) {
+    // naive split: sentences longer than 40 chars, pick top 10
+    const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 40);
+    const selected = sentences.slice(0, 20).map((s, idx) => ({ id: `m-${idx}`, text: s, priority: idx < 3 ? 'high' : idx < 8 ? 'medium' : 'low' }));
+    return selected;
+  }
+
+  try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: `Extract the key promises or commitments from this manifesto text and return JSON array of objects {text, priority} where priority is high|medium|low.\n\nText:\n${text}`,
+      config: { responseMimeType: 'application/json' }
+    });
+    const data = JSON.parse(response.text || '[]');
+    if (Array.isArray(data)) return data.map((d: any, i: number) => ({ id: `m-${i}`, text: d.text || d.claim || '', priority: d.priority || 'medium' }));
+    return [];
+  } catch (e) {
+    console.warn('Manifesto extraction failed', e);
+    return [];
   }
 };
 
@@ -196,6 +236,28 @@ Return ONLY valid JSON.`,
 };
 
 export const generateVaguenessInsight = async (claimText: string, vaguenessScore: number) => {
+  // If API key isn't present, return a local heuristic explanation
+  const hasApiKey = (() => {
+    try {
+      const k = (import.meta.env?.VITE_API_KEY || '').trim();
+      if (k && k !== 'YOUR_GEMINI_API_KEY_HERE') return true;
+    } catch (e) {}
+    try {
+      if (typeof (window as any) !== 'undefined' && (window as any).__ENV__ && (window as any).__ENV__.VITE_API_KEY) return true;
+    } catch (e) {}
+    return false;
+  })();
+
+  if (!hasApiKey) {
+    const parts = [] as string[];
+    if (/\d+/.test(claimText)) parts.push('Contains numeric values or metrics which reduce vagueness.');
+    if (/\b(19|20)\d{2}\b/.test(claimText) || /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.test(claimText)) parts.push('Mentions specific dates or timeframes.');
+    if (/[A-Z][a-z]+\s[A-Z][a-z]+/.test(claimText)) parts.push('Includes named people or organizations.');
+    if (/(percent|%|increase|decrease|more than|less than)/i.test(claimText)) parts.push('Uses measurable language (percent, increase, decrease).');
+    if (parts.length === 0) return 'This claim lacks specific, measurable details (dates, numbers, named actors), making it harder to verify.';
+    return parts.join(' ');
+  }
+
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({

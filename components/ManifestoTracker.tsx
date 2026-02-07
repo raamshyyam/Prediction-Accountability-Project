@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Language } from '../types.ts';
 import { translations } from '../translations.ts';
-import { analyzeClaimDeeply } from '../services/geminiService.ts';
-import { isAIConfigured } from '../utils/aiConfig.ts';
+import { extractManifestoClaims } from '../services/geminiService.ts';
 
 interface ManifestoDocument {
   id: string;
@@ -41,6 +40,7 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
   const [uploadContent, setUploadContent] = useState('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [extractionError, setExtractionError] = useState<string | null>(null);
 
   // Load manifestos from localStorage on mount
   useEffect(() => {
@@ -69,10 +69,25 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
   }, [manifestos]);
 
   const extractTextFromPDF = async (file: File): Promise<string> => {
-    // Simple fallback: show user the PDF was selected but requires manual extraction
-    // In production, you'd install pdfjs-dist: npm install pdfjs-dist
-    const fileName = file.name;
-    return `[Extracted from: ${fileName}]\n\nTo extract PDF content:\n1. Install dependency: npm install pdfjs-dist\n2. Or paste the PDF text manually below`;
+    // Upload the PDF to the local extraction server and return extracted text
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    const resp = await fetch('/api/extract-pdf', {
+      method: 'POST',
+      body: fd
+    });
+    if (!resp.ok) {
+      // try to parse structured error
+      let errMsg = resp.statusText || 'Server extraction failed';
+      try {
+        const j = await resp.json();
+        if (j && j.error) errMsg = j.error;
+      } catch (e) {}
+      throw new Error(errMsg || `HTTP ${resp.status}`);
+    }
+    const json = await resp.json();
+    if (json && json.text) return json.text as string;
+    throw new Error('No text returned from extraction server');
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,12 +101,31 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
 
     setIsProcessing(true);
     try {
+      setExtractionError(null);
       const text = await extractTextFromPDF(file);
       setUploadContent(text);
       setUploadFile(file);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error extracting PDF:', error);
-      alert(lang === 'ne' ? 'PDF पार्स गर्न त्रुटि' : 'Error parsing PDF. Please paste text manually.');
+      setExtractionError(error?.message || 'Extraction failed');
+      // keep uploadFile so user can retry
+      setUploadFile(file);
+      setUploadContent(`\n\n[Automatic extraction failed: ${error?.message || 'unknown error'}]\n\nPlease paste the manifesto text manually below.`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const retryExtraction = async () => {
+    if (!uploadFile) return;
+    setIsProcessing(true);
+    try {
+      setExtractionError(null);
+      const text = await extractTextFromPDF(uploadFile);
+      setUploadContent(text);
+    } catch (err: any) {
+      console.error('Retry extraction failed', err);
+      setExtractionError(err?.message || 'Retry failed');
     } finally {
       setIsProcessing(false);
     }
@@ -122,27 +156,21 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
           content: uploadContent
         };
         
-        // Try to extract claims using AI if configured
-        if (isAIConfigured()) {
-          try {
-            const aiResult = await analyzeClaimDeeply(
-              `Extract key promises and claims from this manifesto:\n\n${uploadContent.substring(0, 1000)}...`,
-              lang
-            );
-            
-            if (aiResult && aiResult.analysisParams) {
-              newManifesto.extractedClaims = aiResult.analysisParams.map((param, idx) => ({
-                id: `claim-${idx}`,
-                text: param.label,
-                priority: idx < 3 ? 'high' : idx < 6 ? 'medium' : 'low',
-                category: 'Manifesto',
-                status: 'pending',
-                progressPercentage: 0
-              }));
-            }
-          } catch (err) {
-            console.warn('AI claim extraction failed, saving without claims', err);
+        // Try to extract claims using AI (or fallback heuristic)
+        try {
+          const extracted = await extractManifestoClaims(uploadContent, lang);
+          if (Array.isArray(extracted) && extracted.length > 0) {
+            newManifesto.extractedClaims = extracted.map((c: any, idx: number) => ({
+              id: c.id || `claim-${idx}`,
+              text: c.text || c.claim || String(c),
+              priority: c.priority || (idx < 3 ? 'high' : idx < 8 ? 'medium' : 'low'),
+              category: 'Manifesto',
+              status: 'pending',
+              progressPercentage: 0
+            }));
           }
+        } catch (err) {
+          console.warn('Manifesto claim extraction failed, saving without claims', err);
         }
         
         setManifestos([...manifestos, newManifesto]);
@@ -245,7 +273,7 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Manifesto Content * (PDF or Text)</label>
                 <div className="space-y-4">
-                  <div className="flex gap-3">
+                    <div className="flex gap-3">
                     <label className="flex-1 cursor-pointer">
                       <div className="px-4 py-3 rounded-xl border-2 border-dashed border-purple-300 bg-purple-50 text-center hover:bg-purple-100 transition-all">
                         <input 
@@ -266,6 +294,7 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
                         onClick={() => {
                           setUploadFile(null);
                           setUploadContent('');
+                          setExtractionError(null);
                         }}
                         className="px-4 py-3 rounded-xl bg-red-100 text-red-700 font-bold hover:bg-red-200 transition-all"
                       >
@@ -290,6 +319,26 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
                     onChange={(e) => setUploadContent(e.target.value)}
                     placeholder="Paste the manifesto text here if not uploading PDF..."
                   />
+                  {extractionError && (
+                    <div className="mt-3 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-bold">Extraction Error</p>
+                          <p className="text-sm">{extractionError}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={retryExtraction}
+                            disabled={isProcessing}
+                            className="px-3 py-2 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {isProcessing ? 'Retrying...' : 'Retry Extraction'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

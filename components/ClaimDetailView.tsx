@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Claim, Language, Claimant, Status } from '../types.ts';
 import { translations } from '../translations.ts';
 import { generateVaguenessInsight, analyzeClaimDeeply } from '../services/geminiService.ts';
-import { isAIConfigured, getAISetupInstructions } from '../utils/aiConfig.ts';
+ 
 
 interface ClaimDetailViewProps {
   claim: Claim;
@@ -22,12 +22,7 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
   useEffect(() => {
     let isMounted = true;
     
-    // Skip AI loading if not configured
-    if (!isAIConfigured()) {
-      setVaguenessInsight('🔌 AI not connected. Set VITE_API_KEY environment variable to enable analysis.');
-      setLoading(false);
-      return;
-    }
+    // Generate vagueness insight (uses local heuristic when AI is not configured)
     
     const loadInsight = async () => {
       setLoading(true);
@@ -205,17 +200,14 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
                       </span>
                     </div>
                   );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Verification Vectors */}
-          {currentClaim.verificationVectors && Array.isArray(currentClaim.verificationVectors) && currentClaim.verificationVectors.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Verification Analysis Models</h3>
-              <div className="space-y-4">
-                {currentClaim.verificationVectors.map((vector, i) => {
+                <button 
+                  onClick={handleDeepAnalyze} 
+                  disabled={loading}
+                  className="w-full mt-4 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 text-white font-bold rounded-lg transition-all text-sm flex items-center justify-center gap-2"
+                >
+                  {loading && <div className="animate-spin w-3 h-3 border-2 border-white/30 border-t-white rounded-full"/>}
+                  {loading ? 'Analyzing...' : 'Re-Analyze Vagueness'}
+                </button>
                   if (!vector || typeof vector !== 'object') return null;
                   const verdict = vector.verdict || 'Inconclusive';
                   const confidence = typeof vector.confidence === 'number' ? Math.max(0, Math.min(1, vector.confidence)) : 0.5;

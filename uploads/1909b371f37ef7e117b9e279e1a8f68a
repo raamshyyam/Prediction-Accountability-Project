@@ -1,0 +1,53 @@
+%PDF-1.5
+%Детел§у РДЖ
+1 0 obj
+<<
+/Type /Catalog
+/Pages 1 0 R
+>>
+endobj
+5 0 obj
+<< /Type /Page /Parent 1 0 R/Contents 6 0 R/Resources << /Font << /F1 3 0 R>>>>>>>
+endobj
+6 0 obj
+<<
+/Length 104 >>
+stream
+BT 
+/F1 12 Tf
+(Hello, World!) T
+ET
+endstream
+endobj
+2 0 obj
+<< /Type /Pages /Kids [1 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /Name /F1 /BaseFont /Times-Roman /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R>>
+endobj
+1 0 obj
+<<
+/Type /Page
+/Parent 2 0 R
+/Resources << >>
+/Contents 6 0 R
+>>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000110 00000 n 
+0000000096 00000 n 
+0000000177 00000 n 
+0000000272 00000 n 
+0000000348 00000 n 
+trailer
+<< /Root 1 0 R /Size 7 >>
+startxref
+444
+%%EOF
