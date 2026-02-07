@@ -19,6 +19,9 @@ if (!rootElement) {
         const root = ReactDOM.createRoot(rootElement);
         console.log("React root created");
         
+        // Clear loading spinner
+        rootElement.innerHTML = '';
+        
         root.render(
           <React.StrictMode>
             <App />
