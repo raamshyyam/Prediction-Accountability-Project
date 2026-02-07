@@ -57,12 +57,22 @@ function App() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // PRIORITY 1: Try Firebase first (persistent source)
+        // PRIORITY 1: Try Firebase first (persistent source) with timeout
         let claimsLoaded = false;
         let claimantsLoaded = false;
         
+        // Helper to add timeout to promises
+        const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+          return Promise.race([
+            promise,
+            new Promise<T>((_, reject) => 
+              setTimeout(() => reject(new Error('Firebase timeout')), timeoutMs)
+            )
+          ]);
+        };
+        
         try {
-          const firebaseClaims = await getClaims();
+          const firebaseClaims = await withTimeout(getClaims(), 5000); // 5 second timeout
           console.log('Firebase claims loaded:', firebaseClaims.length);
           if (firebaseClaims.length > 0) {
             setClaims(firebaseClaims);
@@ -71,11 +81,11 @@ function App() {
             claimsLoaded = true;
           }
         } catch (fbError) {
-          console.warn('Firebase claims fetch failed:', fbError);
+          console.warn('Firebase claims fetch failed or timed out:', fbError);
         }
         
         try {
-          const firebaseClaimants = await getClaimants();
+          const firebaseClaimants = await withTimeout(getClaimants(), 5000); // 5 second timeout
           console.log('Firebase claimants loaded:', firebaseClaimants.length);
           if (firebaseClaimants.length > 0) {
             setClaimants(firebaseClaimants);
@@ -84,7 +94,7 @@ function App() {
             claimantsLoaded = true;
           }
         } catch (fbError) {
-          console.warn('Firebase claimants fetch failed:', fbError);
+          console.warn('Firebase claimants fetch failed or timed out:', fbError);
         }
         
         // PRIORITY 2: If Firebase didn't return data, try localStorage

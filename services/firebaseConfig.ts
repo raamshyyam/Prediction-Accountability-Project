@@ -21,9 +21,35 @@ console.log('Firebase Config:', {
   hasApiKey: !!firebaseConfig.apiKey
 });
 
-// Initialize Firebase
-export const app = initializeApp(firebaseConfig);
+// Lazy initialization - only initialize if config values are provided
+let app: any = null;
+let database: any = null;
+let initialized = false;
 
-// Initialize Realtime Database
-export const database = getDatabase(app);
+const initializeFirebase = () => {
+  if (initialized) return;
+  initialized = true;
+  
+  // Only initialize if we have a projectId
+  if (firebaseConfig.projectId && firebaseConfig.projectId.trim()) {
+    try {
+      app = initializeApp(firebaseConfig);
+      database = getDatabase(app);
+      console.log('Firebase initialized successfully');
+    } catch (e) {
+      console.warn('Firebase initialization failed:', e);
+      app = null;
+      database = null;
+    }
+  } else {
+    console.warn('Firebase config incomplete, skipping initialization');
+    app = null;
+    database = null;
+  }
+};
+
+// Initialize on first import, but don't block
+setTimeout(initializeFirebase, 0);
+
+export { app, database };
 
