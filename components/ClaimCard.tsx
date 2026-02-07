@@ -8,6 +8,8 @@ interface ClaimCardProps {
   claim: Claim;
   claimants: Claimant[];
   lang: Language;
+  isAdmin?: boolean;
+  onTranslate?: (text: string, lang: Language) => Promise<string>;
   onUpdateClaim: (claim: Claim) => void;
   onEditClick: (claim: Claim) => void;
   onDeleteClick: (id: string) => void;
@@ -32,10 +34,44 @@ const categoryIcons = {
   [Category.MANIFESTO]: '📜',
 };
 
-export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, onUpdateClaim, onEditClick, onDeleteClick, onViewDetails, onViewClaimantProfile }) => {
+export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, onUpdateClaim, onEditClick, onDeleteClick, onViewDetails, onViewClaimantProfile, isAdmin, onTranslate }) => {
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [translatedText, setTranslatedText] = useState<string>(claim.text);
+  const [translating, setTranslating] = useState(false);
   const claimant = claimants.find(c => c.id === claim.claimantId);
   const t = translations[lang];
+
+  React.useEffect(() => {
+    let mounted = true;
+    const doTranslate = async () => {
+      if (lang === 'en') {
+        setTranslatedText(claim.text);
+        return;
+      }
+      // if claim already has translations stored, use them
+      // @ts-ignore
+      const existing = (claim as any).translations?.[lang];
+      if (existing) {
+        setTranslatedText(existing);
+        return;
+      }
+      if (!onTranslate) {
+        setTranslatedText(claim.text);
+        return;
+      }
+      setTranslating(true);
+      try {
+        const res = await onTranslate(claim.text, lang);
+        if (mounted) setTranslatedText(res || claim.text);
+      } catch (e) {
+        if (mounted) setTranslatedText(claim.text);
+      } finally {
+        if (mounted) setTranslating(false);
+      }
+    };
+    doTranslate();
+    return () => { mounted = false; };
+  }, [lang, claim.id, claim.text, onTranslate]);
 
   const handleUpdateParams = (params: AnalysisParameter[]) => {
     onUpdateClaim({ ...claim, analysisParams: params });
@@ -62,19 +98,21 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, on
            >
              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
            </button>
-           <button 
-             onClick={() => window.confirm('Delete this claim?') && onDeleteClick(claim.id)}
-             className="p-2 bg-slate-50 hover:bg-red-100 rounded-lg text-red-400 transition-colors"
-             title={t.delete}
-           >
-             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-           </button>
+           {isAdmin && (
+             <button 
+               onClick={() => window.confirm('Delete this claim?') && onDeleteClick(claim.id)}
+               className="p-2 bg-slate-50 hover:bg-red-100 rounded-lg text-red-400 transition-colors"
+               title={t.delete}
+             >
+               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+             </button>
+           )}
            <div className="ml-2 text-2xl" title={claim.category}>{categoryIcons[claim.category]}</div>
         </div>
       </div>
       
       <p className="text-slate-900 font-bold text-xl leading-snug mb-5">
-        "{claim.text}"
+        "{translating ? 'Translating...' : translatedText}"
       </p>
 
       {claim.topicGroup && (
@@ -95,10 +133,10 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, on
           <p className="text-sm font-bold text-slate-800 leading-none mb-1">{claimant?.name || 'Unknown'}</p>
           <p className="text-xs text-slate-500 font-medium">{claimant?.affiliation || 'Individual'}</p>
         </div>
-        <div className="text-right">
-           <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">{t.accuracy}</p>
-           <p className="text-sm font-black text-green-600">{claimant?.accuracyRate || 0}%</p>
-        </div>
+          <div className="text-right">
+            <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">{t.accuracy}</p>
+            <p className="text-sm font-black text-green-600">{(claimant && claimant.totalClaims && claimant.totalClaims > 0) ? `${claimant.accuracyRate}%` : '-'}</p>
+          </div>
       </div>
 
       <div className="grid grid-cols-2 gap-6 text-[10px] text-slate-500 border-y border-slate-50 py-4 mb-4">

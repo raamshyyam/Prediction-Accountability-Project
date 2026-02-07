@@ -19,6 +19,7 @@ const CLAIMANTS_KEY = 'pap_claimants_v1';
 
 function App() {
   const [lang, setLang] = useState<Language>('en');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [claimants, setClaimants] = useState<Claimant[]>([]);
   const [activeTab, setActiveTab] = useState<'claims' | 'dashboard' | 'claimants' | 'manifesto'>('claims');
@@ -257,6 +258,21 @@ function App() {
     setIsModalOpen(true);
   };
 
+  const translateText = async (text: string, targetLang: Language): Promise<string> => {
+    if (targetLang === 'en') return text;
+    try {
+      // Try public MyMemory translate as a lightweight fallback
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|${targetLang}`);
+      const json = await res.json();
+      if (json && json.responseData && json.responseData.translatedText) {
+        return json.responseData.translatedText;
+      }
+    } catch (e) {
+      console.warn('Translation service failed, falling back to original text', e);
+    }
+    return text;
+  };
+
   return (
     <div className={`min-h-screen transition-all duration-500 ${lang === 'ne' ? 'font-sans' : 'font-inter'}`}>
       <Header 
@@ -264,6 +280,8 @@ function App() {
         onSearchChange={setSearchQuery}
         lang={lang}
         setLang={setLang}
+        isAdmin={isAdmin}
+        setIsAdmin={setIsAdmin}
       />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -313,6 +331,8 @@ function App() {
                   claim={claim} 
                   claimants={claimants}
                   lang={lang} 
+                  isAdmin={isAdmin}
+                  onTranslate={translateText}
                   onUpdateClaim={handleUpdateClaim}
                   onEditClick={handleEditClick}
                   onDeleteClick={handleDeleteClaim}

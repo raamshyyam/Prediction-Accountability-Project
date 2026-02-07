@@ -8,9 +8,11 @@ interface HeaderProps {
   onSearchChange: (query: string) => void;
   lang: Language;
   setLang: (lang: Language) => void;
+  isAdmin?: boolean;
+  setIsAdmin?: (val: boolean) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ searchQuery, onSearchChange, lang, setLang }) => {
+export const Header: React.FC<HeaderProps> = ({ searchQuery, onSearchChange, lang, setLang, isAdmin, setIsAdmin }) => {
   const t = translations[lang];
 
   return (
@@ -62,6 +64,15 @@ export const Header: React.FC<HeaderProps> = ({ searchQuery, onSearchChange, lan
             <div className="hidden lg:flex flex-col items-end">
               <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{t.location}</span>
               <span className="text-xs font-black text-slate-700">{t.kathmandu}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-xs text-slate-400">Admin</label>
+              <button
+                onClick={() => setIsAdmin && setIsAdmin(!isAdmin)}
+                className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${isAdmin ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'}`}
+              >
+                {isAdmin ? 'ON' : 'OFF'}
+              </button>
             </div>
           </div>
         </div>
