@@ -60,9 +60,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ text: data.text || '' });
   } catch (e: any) {
     const detail = e?.message || String(e);
-    console.error('Serverless extraction error', detail);
-    appendLocalLog(detail);
+    const stack = e?.stack || null;
+    console.error('Serverless extraction error', detail, stack);
+    appendLocalLog(`${detail} ${stack || ''}`);
     if (Sentry) Sentry.captureException(e);
-    return res.status(500).json({ error: 'Extraction failed', detail });
+    // Return stack in response for debugging; remove in production
+    return res.status(500).json({ error: 'Extraction failed', detail, stack });
   }
 }
