@@ -2,46 +2,21 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end('Method Not Allowed');
   
   try {
-    // Collect raw request body
-    const chunks = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
-    }
-    const buffer = Buffer.concat(chunks);
+    const { IncomingForm } = await import('formidable');
+    const form = new IncomingForm();
     
-    if (!buffer || buffer.length === 0) {
-      return res.status(400).json({ error: 'No file data received' });
-    }
+    const [fields, files] = await form.parse(req);
+    const uploadedFile = files.file?.[0];
     
-    // Extract file content from multipart form data
-    // Find the boundary from Content-Type header
-    const contentType = req.headers['content-type'] || '';
-    const boundaryMatch = contentType.match(/boundary=([^\s;]+)/);
-    const boundary = boundaryMatch ? boundaryMatch[1] : null;
-    
-    let pdfBuffer = buffer;
-    
-    if (boundary) {
-      // Extract data between boundaries
-      const boundaryStr = `--${boundary}`;
-      const startIdx = buffer.indexOf(boundaryStr, 0);
-      const endIdx = buffer.indexOf(boundaryStr, startIdx + boundaryStr.length);
-      
-      if (startIdx >= 0 && endIdx > startIdx) {
-        // Extract content between boundaries
-        let contentStart = startIdx + boundaryStr.length;
-        // Skip to actual file data (after headers)
-        const headerEnd = buffer.indexOf('\r\n\r\n', contentStart);
-        if (headerEnd >= 0) {
-          contentStart = headerEnd + 4;
-        }
-        // Extract up to the closing boundary
-        let contentEnd = endIdx - 2;
-        pdfBuffer = buffer.slice(contentStart, contentEnd);
-      }
+    if (!uploadedFile) {
+      return res.status(400).json({ error: 'No file uploaded' });
     }
     
-    // Dynamic import to avoid module loading issues
+    // Read the uploaded file (formidable writes to tmp by default)
+    const fs = await import('fs');
+    const pdfBuffer = await fs.promises.readFile(uploadedFile.filepath);
+    
+    // Extract PDF text
     const pdfLib = await import('pdf-parse');
     const pdf = pdfLib.default;
     const data = await pdf(pdfBuffer);
