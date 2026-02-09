@@ -35,7 +35,7 @@ const getAI = () => {
   return cachedAI;
 };
 
-export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 'en') => {
+try {
   // If API key isn't available, return a local heuristic analysis
   const hasApiKey = (() => {
     try {
@@ -84,16 +84,15 @@ export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 
     };
   }
 
-  try {
-    const ai = getAI();
-    // Create a timeout promise
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Gemini API timeout - took longer than 15 seconds')), 15000);
-    });
+  const ai = getAI();
+  // Create a timeout promise to prevent blocking indefinitely
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Gemini API timeout - took longer than 20 seconds')), 20000);
+  });
 
-    const analysisPromise = ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: `You are an expert claim verification system. Analyze this claim in depth.
+  const analysisPromise = ai.models.generateContent({
+    model: 'gemini-2.0-flash',
+    contents: `You are an expert claim verification system. Analyze this claim in depth.
 
 Claim: "${claimText}"
 Language: ${lang === 'ne' ? 'Nepali' : 'English'}
@@ -105,86 +104,86 @@ Provide a detailed JSON analysis with:
 4. webEvidence: array of {title, url}
 
 Return ONLY valid JSON, no additional text.`,
-      config: {
-        responseMimeType: 'application/json'
-      }
-    });
-
-    const response = await Promise.race([analysisPromise, timeoutPromise]) as any;
-
-    if (!response || !response.text) {
-      console.warn('Empty response from Gemini API');
-      return {
-        vaguenessScore: 5,
-        analysisParams: [],
-        verificationVectors: [],
-        webEvidence: []
-      };
+    config: {
+      responseMimeType: 'application/json'
     }
+  });
 
-    let text = (response.text || '').trim();
+  const response = await Promise.race([analysisPromise, timeoutPromise]) as any;
 
-    // Handle cases where response might have markdown code blocks
-    if (text.startsWith('```json')) {
-      text = text.replace(/^```json\s*/, '').replace(/```$/, '');
-    } else if (text.startsWith('```')) {
-      text = text.replace(/^```\s*/, '').replace(/```$/, '');
-    }
-
-    text = text.trim();
-
-    // Extract JSON object from the response text
-    const jsonStart = text.indexOf('{');
-    const jsonEnd = text.lastIndexOf('}');
-
-    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-      text = text.substring(jsonStart, jsonEnd + 1);
-    } else {
-      // If we can't find a JSON object, throw an error to trigger the catch block
-      throw new Error('No JSON object found in response');
-    }
-
-    const data = JSON.parse(text);
-
-    // Validate and sanitize the response
-    const vaguenessScore = Math.max(1, Math.min(10, Math.round(data.vaguenessScore || 5)));
-    const analysisParams = Array.isArray(data.analysisParams)
-      ? data.analysisParams.slice(0, 10).filter((p: any) => p && typeof p === 'object')
-      : [];
-    const verificationVectors = Array.isArray(data.verificationVectors)
-      ? data.verificationVectors.slice(0, 5).filter((v: any) => v && typeof v === 'object')
-      : [];
-    const webEvidence = Array.isArray(data.webEvidence)
-      ? data.webEvidence.slice(0, 5).filter((w: any) => w && typeof w === 'object')
-      : [];
-
-    return {
-      vaguenessScore,
-      analysisParams,
-      verificationVectors,
-      webEvidence
-    };
-  } catch (e) {
-    console.error('Analysis failed', e);
+  if (!response || !response.text) {
+    console.warn('Empty response from Gemini API');
     return {
       vaguenessScore: 5,
-      analysisParams: [
-        { label: 'Has specific date', fulfilled: false },
-        { label: 'Named actors/people', fulfilled: false },
-        { label: 'Quantified metrics', fulfilled: false },
-        { label: 'Geographic location', fulfilled: false },
-        { label: 'Clear causality', fulfilled: false },
-        { label: 'Falsifiable', fulfilled: false },
-        { label: 'Time-bound', fulfilled: false },
-        { label: 'Measurable outcome', fulfilled: false },
-        { label: 'Specific action/event', fulfilled: false },
-        { label: 'Clear scope', fulfilled: false }
-      ],
+      analysisParams: [],
       verificationVectors: [],
       webEvidence: []
     };
   }
-};
+
+  let text = (response.text || '').trim();
+
+  // Handle cases where response might have markdown code blocks
+  if (text.startsWith('```json')) {
+    text = text.replace(/^```json\s*/, '').replace(/```$/, '');
+  } else if (text.startsWith('```')) {
+    text = text.replace(/^```\s*/, '').replace(/```$/, '');
+  }
+
+  text = text.trim();
+
+  // Extract JSON object from the response text
+  const jsonStart = text.indexOf('{');
+  const jsonEnd = text.lastIndexOf('}');
+
+  if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+    text = text.substring(jsonStart, jsonEnd + 1);
+  } else {
+    // If we can't find a JSON object, throw an error to trigger the catch block
+    throw new Error('No JSON object found in response');
+  }
+
+  const data = JSON.parse(text);
+
+  // Validate and sanitize the response
+  const vaguenessScore = Math.max(1, Math.min(10, Math.round(data.vaguenessScore || 5)));
+  const analysisParams = Array.isArray(data.analysisParams)
+    ? data.analysisParams.slice(0, 10).filter((p: any) => p && typeof p === 'object')
+    : [];
+  const verificationVectors = Array.isArray(data.verificationVectors)
+    ? data.verificationVectors.slice(0, 5).filter((v: any) => v && typeof v === 'object')
+    : [];
+  const webEvidence = Array.isArray(data.webEvidence)
+    ? data.webEvidence.slice(0, 5).filter((w: any) => w && typeof w === 'object')
+    : [];
+
+  return {
+    vaguenessScore,
+    analysisParams,
+    verificationVectors,
+    webEvidence
+  };
+} catch (e) {
+  console.error('Analysis failed', e);
+  // Return a safe fallback object to prevent UI crashes
+  return {
+    vaguenessScore: 5,
+    analysisParams: [
+      { label: 'Has specific date', fulfilled: false },
+      { label: 'Named actors/people', fulfilled: false },
+      { label: 'Quantified metrics', fulfilled: false },
+      { label: 'Geographic location', fulfilled: false },
+      { label: 'Clear causality', fulfilled: false },
+      { label: 'Falsifiable', fulfilled: false },
+      { label: 'Time-bound', fulfilled: false },
+      { label: 'Measurable outcome', fulfilled: false },
+      { label: 'Specific action/event', fulfilled: false },
+      { label: 'Clear scope', fulfilled: false }
+    ],
+    verificationVectors: [],
+    webEvidence: []
+  };
+}
 
 export const extractManifestoClaims = async (text: string, lang: 'en' | 'ne' = 'en') => {
   // If no API key, do a simple sentence-splitting heuristic
