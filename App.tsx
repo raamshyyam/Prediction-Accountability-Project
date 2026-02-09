@@ -8,6 +8,7 @@ import { AddClaimModal } from './components/AddClaimModal.tsx';
 import { ClaimDetailView } from './components/ClaimDetailView.tsx';
 import { ClaimantProfile } from './components/ClaimantProfile.tsx';
 import { ManifestoTracker } from './components/ManifestoTracker.tsx';
+import { AboutPage } from './components/AboutPage.tsx';
 import { MOCK_CLAIMS, MOCK_CLAIMANTS } from './constants.ts';
 import { Claim, Category, Language, Status, Claimant } from './types.ts';
 import { translations } from './translations.ts';
@@ -24,7 +25,7 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [claimants, setClaimants] = useState<Claimant[]>([]);
-  const [activeTab, setActiveTab] = useState<'claims' | 'dashboard' | 'claimants' | 'manifesto'>('claims');
+  const [activeTab, setActiveTab] = useState<'claims' | 'dashboard' | 'claimants' | 'manifesto' | 'about'>('claims');
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editClaim, setEditClaim] = useState<Claim | null>(null);
@@ -336,7 +337,7 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10">
           <div className="bg-white p-1.5 rounded-2xl border border-slate-200 inline-flex shadow-sm overflow-x-auto max-w-full">
-            {(['claims', 'claimants', 'manifesto', 'dashboard'] as const).map((tab) => (
+            {(['claims', 'claimants', 'manifesto', 'dashboard', 'about'] as const).map((tab) => (
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -346,6 +347,7 @@ function App() {
                 {tab === 'claimants' && 'Claimants'}
                 {tab === 'manifesto' && '📋 Manifestos'}
                 {tab === 'dashboard' && 'Dashboard'}
+                {tab === 'about' && 'About'}
               </button>
             ))}
           </div>
@@ -405,6 +407,8 @@ function App() {
         {activeTab === 'dashboard' && <Dashboard claims={claims} lang={lang} onImport={handleImportData} />}
 
         {activeTab === 'manifesto' && <ManifestoTracker lang={lang} />}
+
+        {activeTab === 'about' && <AboutPage lang={lang} />}
 
         {activeTab === 'claimants' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">

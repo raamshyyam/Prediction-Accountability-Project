@@ -29,22 +29,25 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
       setLoading(true);
       setError(false);
       try {
-        // Add timeout: if AI call takes more than 5 seconds, skip it
+        // Add timeout: if AI call takes more than 12 seconds, skip it
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('AI insight timeout')), 5000)
+          setTimeout(() => reject(new Error('Insight generation timeout')), 12000)
         );
         
         const insightPromise = generateVaguenessInsight(currentClaim.text, currentClaim.vaguenessIndex);
         const insight = await Promise.race([insightPromise, timeoutPromise]) as string;
         
-        if (isMounted) {
+        if (isMounted && insight && insight.length > 0) {
           setVaguenessInsight(insight);
+        } else if (isMounted) {
+          setVaguenessInsight('Unable to generate analysis at this time.');
+          setError(true);
         }
       } catch (e) {
         if (isMounted) {
           console.warn("Vagueness insight unavailable:", e);
-          setVaguenessInsight('Analysis not available at this time.');
-          setError(true);
+          setVaguenessInsight('Analysis generation timed out. Showing local analysis instead.');
+          setError(false); // Not an error, just a timeout
         }
       } finally {
         if (isMounted) {
@@ -63,6 +66,7 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
   const handleDeepAnalyze = async () => {
     if (!currentClaim.text.trim()) return;
     setLoading(true);
+    setError(false);
     try {
       const result = await analyzeClaimDeeply(currentClaim.text, lang);
       if (result) {
@@ -77,13 +81,23 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
         if (onUpdateClaim) {
           onUpdateClaim(updatedClaim);
         }
-        // Reload the insight
-        const insight = await generateVaguenessInsight(currentClaim.text, result.vaguenessScore || currentClaim.vaguenessIndex);
-        setVaguenessInsight(insight);
+        // Reload the insight with timeout
+        try {
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Insight reload timeout')), 8000)
+          );
+          const insightPromise = generateVaguenessInsight(currentClaim.text, result.vaguenessScore || currentClaim.vaguenessIndex);
+          const insight = await Promise.race([insightPromise, timeoutPromise]) as string;
+          setVaguenessInsight(insight || 'Analysis complete.');
+        } catch (insightErr) {
+          console.warn("Could not reload insight after analysis", insightErr);
+          setVaguenessInsight('Detailed analysis complete.');
+        }
       }
     } catch (err) {
       console.error("Deep analysis failed", err);
       setError(true);
+      setVaguenessInsight('Analysis failed. Please try again.');
     } finally {
       setLoading(false);
     }

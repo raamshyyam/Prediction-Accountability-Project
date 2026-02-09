@@ -111,13 +111,55 @@ Return ONLY valid JSON, no additional text.`,
     });
 
     const response = await Promise.race([analysisPromise, timeoutPromise]) as any;
-    const text = response.text || '{}';
+    
+    if (!response || !response.text) {
+      console.warn('Empty response from Gemini API');
+      return {
+        vaguenessScore: 5,
+        analysisParams: [],
+        verificationVectors: [],
+        webEvidence: []
+      };
+    }
+    
+    let text = (response.text || '').trim();
+    
+    // Handle cases where response might have markdown code blocks
+    if (text.startsWith('```json')) {
+      text = text.replace(/^```json\s*/, '').replace(/```$/, '');
+    } else if (text.startsWith('```')) {
+      text = text.replace(/^```\s*/, '').replace(/```$/, '');
+    }
+    
+    text = text.trim();
+    
+    // Ensure we have valid JSON
+    if (!text.startsWith('{')) {
+      text = '{' + text;
+    }
+    if (!text.endsWith('}')) {
+      text = text + '}';
+    }
+    
     const data = JSON.parse(text);
+    
+    // Validate and sanitize the response
+    const vaguenessScore = Math.max(1, Math.min(10, Math.round(data.vaguenessScore || 5)));
+    const analysisParams = Array.isArray(data.analysisParams) 
+      ? data.analysisParams.slice(0, 10).filter((p: any) => p && typeof p === 'object')
+      : [];
+    const verificationVectors = Array.isArray(data.verificationVectors) 
+      ? data.verificationVectors.slice(0, 5).filter((v: any) => v && typeof v === 'object')
+      : [];
+    const webEvidence = Array.isArray(data.webEvidence) 
+      ? data.webEvidence.slice(0, 5).filter((w: any) => w && typeof w === 'object')
+      : [];
+    
     return {
-      vaguenessScore: Math.round(data.vaguenessScore || 5),
-      analysisParams: Array.isArray(data.analysisParams) ? data.analysisParams.slice(0, 10) : [],
-      verificationVectors: Array.isArray(data.verificationVectors) ? data.verificationVectors : [],
-      webEvidence: Array.isArray(data.webEvidence) ? data.webEvidence : []
+      vaguenessScore,
+      analysisParams,
+      verificationVectors,
+      webEvidence
     };
   } catch (e) {
     console.error('Analysis failed', e);
@@ -264,29 +306,91 @@ export const generateVaguenessInsight = async (claimText: string, vaguenessScore
     return false;
   })();
 
-  if (!hasApiKey) {
+  const generateLocalInsight = (): string => {
     const parts = [] as string[];
-    if (/\d+/.test(claimText)) parts.push('Contains numeric values or metrics which reduce vagueness.');
-    if (/\b(19|20)\d{2}\b/.test(claimText) || /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.test(claimText)) parts.push('Mentions specific dates or timeframes.');
-    if (/[A-Z][a-z]+\s[A-Z][a-z]+/.test(claimText)) parts.push('Includes named people or organizations.');
-    if (/(percent|%|increase|decrease|more than|less than)/i.test(claimText)) parts.push('Uses measurable language (percent, increase, decrease).');
-    if (parts.length === 0) return 'This claim lacks specific, measurable details (dates, numbers, named actors), making it harder to verify.';
-    return parts.join(' ');
+    const observations = [] as string[];
+    
+    // Analyze specific elements
+    if (/\d+(?:\.\d+)?(?:%|%)?/.test(claimText)) {
+      observations.push('Contains specific numbers or percentages');
+    }
+    if (/\b(19|20)\d{2}\b/.test(claimText)) {
+      observations.push('Mentions a specific year');
+    }
+    if (/(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2}\/\d{1,2})/i.test(claimText)) {
+      observations.push('References a specific date');
+    }
+    if (/[A-Z][a-z]+\s[A-Z][a-z]+/.test(claimText)) {
+      observations.push('Names specific people or organizations');
+    }
+    if (/(percent|%|increase|decrease|more than|less than|growth|rate|per|/)/i.test(claimText)) {
+      observations.push('Uses quantifiable or measurable language');
+    }
+    if (/(will|shall|would|is expected|aim to|plan to|intend to|will likely)/i.test(claimText)) {
+      observations.push('Contains a falsifiable prediction');
+    }
+    if (/(by\s+\d{4}|within\s+\d+\s+(day|week|month|year|hour))/i.test(claimText)) {
+      observations.push('Specifies a timeframe');
+    }
+    if (/(Nepal|Kathmandu|Province|District|Region|City)/i.test(claimText)) {
+      observations.push('Specifies a geographic location');
+    }
+
+    // Build insight based on vagueness score
+    let insight = '';
+    if (vaguenessScore >= 8) {
+      insight = `This claim is very vague and difficult to verify.`;
+    } else if (vaguenessScore >= 6) {
+      insight = `This claim has some vague elements that make verification challenging.`;
+    } else if (vaguenessScore >= 4) {
+      insight = `This claim is moderately clear, though some details could be more specific.`;
+    } else {
+      insight = `This claim is clear and specific, making it easier to verify.`;
+    }
+
+    if (observations.length > 0) {
+      insight += ` Positive elements: ${observations.join(', ')}.`;
+    }
+
+    if (vaguenessScore >= 6 && observations.length < 3) {
+      insight += ` To make this claim more verifiable, consider adding specific dates, names, numbers, or measurable outcomes.`;
+    }
+
+    return insight;
+  };
+
+  if (!hasApiKey) {
+    return generateLocalInsight();
   }
 
   try {
     const ai = getAI();
-    const response = await ai.models.generateContent({
+    
+    // Add timeout for insight generation (8 seconds)
+    const timeoutPromise = new Promise<string>((_, reject) => 
+      setTimeout(() => reject(new Error('Insight generation timeout')), 8000)
+    );
+    
+    const responsePromise = ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: `Explain why this claim has a vagueness score of ${vaguenessScore}/10:
       
 "${claimText}"
 
-Provide a concise explanation of which specific elements make it vague or clear.`
+Provide a concise explanation of which specific elements make it vague or clear. Keep it under 150 characters.`
     });
-    return response.text || 'Analysis not available';
+    
+    const response = await Promise.race([responsePromise, timeoutPromise]) as any;
+    const text = (response.text || '').trim();
+    
+    if (text && text.length > 0) {
+      return text;
+    }
+    
+    // Fallback if response is empty
+    return generateLocalInsight();
   } catch (e) {
-    console.error("Vagueness insight failed", e);
-    return 'Analysis not available';
+    console.warn("Vagueness insight generation failed, using local analysis:", e);
+    return generateLocalInsight();
   }
 };
