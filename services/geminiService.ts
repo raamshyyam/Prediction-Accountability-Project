@@ -155,10 +155,26 @@ export const extractManifestoClaims = async (text: string, lang: 'en' | 'ne' = '
   })();
 
   if (!hasApiKey) {
-    // naive split: sentences longer than 40 chars, pick top 10
-    const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 40);
-    const selected = sentences.slice(0, 20).map((s, idx) => ({ id: `m-${idx}`, text: s, priority: idx < 3 ? 'high' : idx < 8 ? 'medium' : 'low' }));
-    return selected;
+    // Smart sentence splitting: extract sentences that look like promises/commitments
+    const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 10);
+    // Filter for sentences that look like commitments (contain action verbs)
+    const commitmentKeywords = ['will|shall|would|promise|commit|build|construct|improve|increase|decrease|establish|create|develop|ensure|maintain|strengthen|reduce|expand|launch|introduce|pass|approve|implement|guarantee|provide|offer|support|promote|enhance|reform|modernize|invest|allocate|fund|dedicate|allocate|raise|lower|eliminate|abolish|reform'];
+    const commitmentRegex = new RegExp(commitmentKeywords.join(''), 'i');
+    
+    const selected = sentences
+      .filter(s => commitmentRegex.test(s) || s.length > 30)
+      .slice(0, 25)
+      .map((s, idx) => ({ 
+        id: `m-${idx}`, 
+        text: s.length > 150 ? s.substring(0, 150) + '...' : s, 
+        priority: idx < 5 ? 'high' : idx < 15 ? 'medium' : 'low' 
+      }));
+    
+    return selected.length > 0 ? selected : sentences.slice(0, 10).map((s, idx) => ({ 
+      id: `m-${idx}`, 
+      text: s.length > 150 ? s.substring(0, 150) + '...' : s, 
+      priority: idx < 3 ? 'high' : idx < 7 ? 'medium' : 'low' 
+    }));
   }
 
   try {

@@ -48,6 +48,19 @@ export const AddClaimModal: React.FC<AddClaimModalProps> = ({ isOpen, lang, onCl
 
   if (!isOpen) return null;
 
+  const calculateVagueness = (claimText: string): number => {
+    if (!claimText || !claimText.trim()) return 5;
+    const len = claimText.length;
+    const numbers = (claimText.match(/\d{3,}|\d+/g)|| []).length;
+    const dates = (/\b(19|20)\d{2}\b/.test(claimText) ? 1 : 0) + (/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i.test(claimText) ? 1 : 0);
+    const named = /[A-Z][a-z]+\s[A-Z][a-z]+/.test(claimText) ? 1 : 0;
+    // lower vagueness (clearer) if numbers/dates/names present
+    let score = 10 - Math.min(8, numbers + dates + named + Math.round(len / 140));
+    if (score < 1) score = 1;
+    if (score > 10) score = 10;
+    return score;
+  };
+
   const handleDeepAnalyze = async () => {
     if (!text.trim()) return;
     setIsAnalyzing(true);
@@ -89,7 +102,7 @@ export const AddClaimModal: React.FC<AddClaimModalProps> = ({ isOpen, lang, onCl
       status,
       targetDate,
       description,
-      vaguenessIndex: aiAnalysis?.vaguenessScore || editData?.vaguenessIndex || 5,
+      vaguenessIndex: aiAnalysis?.vaguenessScore || editData?.vaguenessIndex || calculateVagueness(text),
       analysisParams: aiAnalysis?.analysisParams || editData?.analysisParams || [],
       verificationVectors: aiAnalysis?.verificationVectors || editData?.verificationVectors || [],
       webEvidenceLinks: finalEvidence.length > 0 ? finalEvidence : [],

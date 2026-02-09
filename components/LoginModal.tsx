@@ -14,12 +14,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ lang, onLoginSuccess }) 
   const [error, setError] = useState('');
   const ADMIN_PASSWORD = 'pap2026'; // Simple password for demo
 
-  useEffect(() => {
-    // Auto-login as viewer immediately on mount
-    localStorage.setItem('pap_auth', JSON.stringify({ role: 'viewer', loginTime: Date.now() }));
-    onLoginSuccess(false);
-  }, [onLoginSuccess]);
-
   const handleLogin = () => {
     if (role === 'admin') {
       if (adminPassword === ADMIN_PASSWORD) {
