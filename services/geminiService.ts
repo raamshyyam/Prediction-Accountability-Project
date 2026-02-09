@@ -10,7 +10,7 @@ const getAI = () => {
 
   // Access API key from Vite environment (requires VITE_ prefix for client-side)
   let apiKey = '';
-  
+
   // Try different sources for the API key
   try {
     apiKey = (import.meta.env?.VITE_API_KEY || '').trim();
@@ -18,7 +18,7 @@ const getAI = () => {
     // import.meta not available, try process.env
     apiKey = (process.env?.VITE_API_KEY || '').trim();
   }
-  
+
   if (!apiKey && typeof window !== 'undefined' && (window as any).__ENV__) {
     apiKey = ((window as any).__ENV__.VITE_API_KEY || '').trim();
   }
@@ -30,7 +30,7 @@ const getAI = () => {
     console.log("✓ Gemini API Key configured");
     cachedAI = new GoogleGenAI({ apiKey });
   }
-  
+
   apiKeyChecked = true;
   return cachedAI;
 };
@@ -41,11 +41,11 @@ export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 
     try {
       const k = (import.meta.env?.VITE_API_KEY || '').trim();
       if (k && k !== 'YOUR_GEMINI_API_KEY_HERE') return true;
-    } catch (e) {}
+    } catch (e) { }
     try {
       // runtime fallback
       if (typeof (window as any) !== 'undefined' && (window as any).__ENV__ && (window as any).__ENV__.VITE_API_KEY) return true;
-    } catch (e) {}
+    } catch (e) { }
     return false;
   })();
 
@@ -111,7 +111,7 @@ Return ONLY valid JSON, no additional text.`,
     });
 
     const response = await Promise.race([analysisPromise, timeoutPromise]) as any;
-    
+
     if (!response || !response.text) {
       console.warn('Empty response from Gemini API');
       return {
@@ -121,40 +121,43 @@ Return ONLY valid JSON, no additional text.`,
         webEvidence: []
       };
     }
-    
+
     let text = (response.text || '').trim();
-    
+
     // Handle cases where response might have markdown code blocks
     if (text.startsWith('```json')) {
       text = text.replace(/^```json\s*/, '').replace(/```$/, '');
     } else if (text.startsWith('```')) {
       text = text.replace(/^```\s*/, '').replace(/```$/, '');
     }
-    
+
     text = text.trim();
-    
-    // Ensure we have valid JSON
-    if (!text.startsWith('{')) {
-      text = '{' + text;
+
+    // Extract JSON object from the response text
+    const jsonStart = text.indexOf('{');
+    const jsonEnd = text.lastIndexOf('}');
+
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      text = text.substring(jsonStart, jsonEnd + 1);
+    } else {
+      // If we can't find a JSON object, throw an error to trigger the catch block
+      throw new Error('No JSON object found in response');
     }
-    if (!text.endsWith('}')) {
-      text = text + '}';
-    }
-    
+
     const data = JSON.parse(text);
-    
+
     // Validate and sanitize the response
     const vaguenessScore = Math.max(1, Math.min(10, Math.round(data.vaguenessScore || 5)));
-    const analysisParams = Array.isArray(data.analysisParams) 
+    const analysisParams = Array.isArray(data.analysisParams)
       ? data.analysisParams.slice(0, 10).filter((p: any) => p && typeof p === 'object')
       : [];
-    const verificationVectors = Array.isArray(data.verificationVectors) 
+    const verificationVectors = Array.isArray(data.verificationVectors)
       ? data.verificationVectors.slice(0, 5).filter((v: any) => v && typeof v === 'object')
       : [];
-    const webEvidence = Array.isArray(data.webEvidence) 
+    const webEvidence = Array.isArray(data.webEvidence)
       ? data.webEvidence.slice(0, 5).filter((w: any) => w && typeof w === 'object')
       : [];
-    
+
     return {
       vaguenessScore,
       analysisParams,
@@ -189,10 +192,10 @@ export const extractManifestoClaims = async (text: string, lang: 'en' | 'ne' = '
     try {
       const k = (import.meta.env?.VITE_API_KEY || '').trim();
       if (k && k !== 'YOUR_GEMINI_API_KEY_HERE') return true;
-    } catch (e) {}
+    } catch (e) { }
     try {
       if (typeof (window as any) !== 'undefined' && (window as any).__ENV__ && (window as any).__ENV__.VITE_API_KEY) return true;
-    } catch (e) {}
+    } catch (e) { }
     return false;
   })();
 
@@ -202,20 +205,20 @@ export const extractManifestoClaims = async (text: string, lang: 'en' | 'ne' = '
     // Filter for sentences that look like commitments (contain action verbs)
     const commitmentKeywords = ['will|shall|would|promise|commit|build|construct|improve|increase|decrease|establish|create|develop|ensure|maintain|strengthen|reduce|expand|launch|introduce|pass|approve|implement|guarantee|provide|offer|support|promote|enhance|reform|modernize|invest|allocate|fund|dedicate|allocate|raise|lower|eliminate|abolish|reform'];
     const commitmentRegex = new RegExp(commitmentKeywords.join(''), 'i');
-    
+
     const selected = sentences
       .filter(s => commitmentRegex.test(s) || s.length > 30)
       .slice(0, 25)
-      .map((s, idx) => ({ 
-        id: `m-${idx}`, 
-        text: s.length > 150 ? s.substring(0, 150) + '...' : s, 
-        priority: idx < 5 ? 'high' : idx < 15 ? 'medium' : 'low' 
+      .map((s, idx) => ({
+        id: `m-${idx}`,
+        text: s.length > 150 ? s.substring(0, 150) + '...' : s,
+        priority: idx < 5 ? 'high' : idx < 15 ? 'medium' : 'low'
       }));
-    
-    return selected.length > 0 ? selected : sentences.slice(0, 10).map((s, idx) => ({ 
-      id: `m-${idx}`, 
-      text: s.length > 150 ? s.substring(0, 150) + '...' : s, 
-      priority: idx < 3 ? 'high' : idx < 7 ? 'medium' : 'low' 
+
+    return selected.length > 0 ? selected : sentences.slice(0, 10).map((s, idx) => ({
+      id: `m-${idx}`,
+      text: s.length > 150 ? s.substring(0, 150) + '...' : s,
+      priority: idx < 3 ? 'high' : idx < 7 ? 'medium' : 'low'
     }));
   }
 
@@ -254,12 +257,12 @@ Return JSON with claims array: [{ claimantName, claimText, category, targetDateE
 export const searchClaimantBackground = async (claimantName: string) => {
   try {
     const ai = getAI();
-    
+
     // Create a timeout promise (10 seconds for background search)
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Claimant background search timeout')), 10000);
     });
-    
+
     const searchPromise = ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: `Research this person: "${claimantName}"
@@ -276,10 +279,10 @@ Return ONLY valid JSON.`,
         responseMimeType: "application/json"
       }
     });
-    
+
     const response = await Promise.race([searchPromise, timeoutPromise]) as any;
     const result = JSON.parse(response.text || '{}');
-    
+
     return {
       bio: result.bio || '',
       knownPredictions: Array.isArray(result.knownPredictions) ? result.knownPredictions : [],
@@ -299,17 +302,17 @@ export const generateVaguenessInsight = async (claimText: string, vaguenessScore
     try {
       const k = (import.meta.env?.VITE_API_KEY || '').trim();
       if (k && k !== 'YOUR_GEMINI_API_KEY_HERE') return true;
-    } catch (e) {}
+    } catch (e) { }
     try {
       if (typeof (window as any) !== 'undefined' && (window as any).__ENV__ && (window as any).__ENV__.VITE_API_KEY) return true;
-    } catch (e) {}
+    } catch (e) { }
     return false;
   })();
 
   const generateLocalInsight = (): string => {
     const parts = [] as string[];
     const observations = [] as string[];
-    
+
     // Analyze specific elements
     if (/\d+(?:\.\d+)?(?:%|%)?/.test(claimText)) {
       observations.push('Contains specific numbers or percentages');
@@ -365,12 +368,12 @@ export const generateVaguenessInsight = async (claimText: string, vaguenessScore
 
   try {
     const ai = getAI();
-    
+
     // Add timeout for insight generation (8 seconds)
-    const timeoutPromise = new Promise<string>((_, reject) => 
+    const timeoutPromise = new Promise<string>((_, reject) =>
       setTimeout(() => reject(new Error('Insight generation timeout')), 8000)
     );
-    
+
     const responsePromise = ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: `Explain why this claim has a vagueness score of ${vaguenessScore}/10:
@@ -379,14 +382,14 @@ export const generateVaguenessInsight = async (claimText: string, vaguenessScore
 
 Provide a concise explanation of which specific elements make it vague or clear. Keep it under 150 characters.`
     });
-    
+
     const response = await Promise.race([responsePromise, timeoutPromise]) as any;
     const text = (response.text || '').trim();
-    
+
     if (text && text.length > 0) {
       return text;
     }
-    
+
     // Fallback if response is empty
     return generateLocalInsight();
   } catch (e) {

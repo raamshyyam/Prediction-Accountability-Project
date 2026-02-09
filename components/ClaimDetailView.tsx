@@ -3,7 +3,7 @@ import { Claim, Language, Claimant, Status } from '../types.ts';
 import { translations } from '../translations.ts';
 import { generateVaguenessInsight, analyzeClaimDeeply } from '../services/geminiService.ts';
 import { isAIConfigured } from '../utils/aiConfig.ts';
- 
+
 
 interface ClaimDetailViewProps {
   claim: Claim;
@@ -22,32 +22,36 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
 
   useEffect(() => {
     let isMounted = true;
-    
+
     // Generate vagueness insight (uses local heuristic when AI is not configured)
-    
+
     const loadInsight = async () => {
       setLoading(true);
       setError(false);
       try {
         // Add timeout: if AI call takes more than 12 seconds, skip it
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Insight generation timeout')), 12000)
         );
-        
+
         const insightPromise = generateVaguenessInsight(currentClaim.text, currentClaim.vaguenessIndex);
         const insight = await Promise.race([insightPromise, timeoutPromise]) as string;
-        
+
         if (isMounted && insight && insight.length > 0) {
           setVaguenessInsight(insight);
         } else if (isMounted) {
-          setVaguenessInsight('Unable to generate analysis at this time.');
-          setError(true);
+          // If detailed analysis is unavailable, fall back to a generic message based on the score
+          // instead of showing an error. Valid vagueness scores always exist.
+          const fallback = `Analysis limited. Vagueness Score: ${currentClaim.vaguenessIndex}/10.`;
+          setVaguenessInsight(fallback);
+          // Don't set error true, just show limited info
+          setError(false);
         }
       } catch (e) {
         if (isMounted) {
           console.warn("Vagueness insight unavailable:", e);
-          setVaguenessInsight('Analysis generation timed out. Showing local analysis instead.');
-          setError(false); // Not an error, just a timeout
+          setVaguenessInsight('Analysis temporarily unavailable. check your connection or API key.');
+          setError(false); // Not a critical error
         }
       } finally {
         if (isMounted) {
@@ -55,9 +59,9 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
         }
       }
     };
-    
+
     loadInsight();
-    
+
     return () => {
       isMounted = false;
     };
@@ -83,7 +87,7 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
         }
         // Reload the insight with timeout
         try {
-          const timeoutPromise = new Promise((_, reject) => 
+          const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Insight reload timeout')), 8000)
           );
           const insightPromise = generateVaguenessInsight(currentClaim.text, result.vaguenessScore || currentClaim.vaguenessIndex);
@@ -140,10 +144,10 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
           {/* Claimant Info */}
           {claimant && (
             <div className="flex gap-4 items-start bg-gradient-to-r from-slate-50 to-slate-100 rounded-2xl p-6">
-              <img 
-                src={claimant.photoUrl || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(claimant.name)} 
-                alt={claimant.name} 
-                className="w-16 h-16 rounded-full border-3 border-white shadow-md" 
+              <img
+                src={claimant.photoUrl || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(claimant.name)}
+                alt={claimant.name}
+                className="w-16 h-16 rounded-full border-3 border-white shadow-md"
               />
               <div className="flex-1">
                 <h4 className="text-lg font-black text-slate-800 mb-1">{claimant.name}</h4>
@@ -177,7 +181,7 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
                 </div>
                 <div className="w-24 h-24 rounded-full flex items-center justify-center bg-white/20">
                   <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
                 </div>
               </div>
@@ -185,12 +189,12 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
                 {loading ? 'Analyzing vagueness...' : vaguenessInsight || 'This claim contains several vague elements that make verification difficult.'}
               </p>
               {isAIConfigured() && (
-                <button 
-                  onClick={handleDeepAnalyze} 
+                <button
+                  onClick={handleDeepAnalyze}
                   disabled={loading}
                   className="w-full mt-4 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 text-white font-bold rounded-lg transition-all text-sm flex items-center justify-center gap-2"
                 >
-                  {loading && <div className="animate-spin w-3 h-3 border-2 border-white/30 border-t-white rounded-full"/>}
+                  {loading && <div className="animate-spin w-3 h-3 border-2 border-white/30 border-t-white rounded-full" />}
                   {loading ? 'Analyzing...' : 'Re-Analyze Vagueness'}
                 </button>
               )}
@@ -233,11 +237,10 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
                     <div key={i} className="border-l-4 border-blue-500 bg-slate-50 rounded-r-lg p-4">
                       <div className="flex justify-between items-start mb-2">
                         <h4 className="font-bold text-slate-800">{vector.modelName || 'Model'}</h4>
-                        <span className={`text-xs font-black px-2 py-1 rounded uppercase ${
-                          verdict === 'Fulfilled' ? 'bg-green-100 text-green-700' :
+                        <span className={`text-xs font-black px-2 py-1 rounded uppercase ${verdict === 'Fulfilled' ? 'bg-green-100 text-green-700' :
                           verdict === 'Disproven' ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
+                            'bg-yellow-100 text-yellow-700'
+                          }`}>
                           {verdict}
                         </span>
                       </div>
@@ -259,7 +262,7 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
           {/* Evidence & Sources */}
           <div className="space-y-4">
             <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Sources & Evidence</h3>
-            
+
             {/* Original Sources */}
             {currentClaim.sources && Array.isArray(currentClaim.sources) && currentClaim.sources.length > 0 && (
               <div className="space-y-3">
@@ -313,12 +316,11 @@ export const ClaimDetailView: React.FC<ClaimDetailViewProps> = ({ claim, claiman
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-6">
             <div>
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Status</p>
-              <p className={`text-lg font-black ${
-                currentClaim.status === Status.FULFILLED ? 'text-green-600' :
+              <p className={`text-lg font-black ${currentClaim.status === Status.FULFILLED ? 'text-green-600' :
                 currentClaim.status === Status.DISPROVEN ? 'text-red-600' :
-                currentClaim.status === Status.ONGOING ? 'text-blue-600' :
-                'text-slate-600'
-              }`}>{currentClaim.status}</p>
+                  currentClaim.status === Status.ONGOING ? 'text-blue-600' :
+                    'text-slate-600'
+                }`}>{currentClaim.status}</p>
               {currentClaim.status === Status.ONGOING && (
                 <div className="mt-3 flex items-center gap-2 text-blue-600">
                   <div className="animate-spin w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full" />
