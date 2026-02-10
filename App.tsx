@@ -350,7 +350,23 @@ function App() {
                 {lang === 'ne' ? 'तपाईं डेमो मोड हेर्दै हुनुहुन्छ (डेटाबेस जडान छैन)' : 'You are viewing Demo Mode (Database not connected)'}
               </span>
             </div>
-            {!isAdmin && <button onClick={() => setIsModalOpen(true)} className="text-amber-900 underline font-bold">Try adding a claim</button>}
+            <div className="flex items-center gap-4">
+              {!isAdmin && <button onClick={() => setIsModalOpen(true)} className="text-amber-900 underline font-bold">Try adding a claim</button>}
+              <button
+                onClick={() => {
+                  if (window.confirm('This will clear all local data and reload. Are you sure?')) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    localStorage.removeItem(CLAIMANTS_KEY);
+                    localStorage.removeItem('pap_claims');
+                    localStorage.removeItem('pap_claimants');
+                    window.location.reload();
+                  }
+                }}
+                className="text-amber-700 hover:text-amber-900 text-xs border border-amber-300 rounded px-2 py-1"
+              >
+                Reset Data
+              </button>
+            </div>
           </div>
         </div>
       )}

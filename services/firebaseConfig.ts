@@ -14,42 +14,30 @@ const firebaseConfig = {
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || process.env.FIREBASE_DATABASE_URL || ""
 };
 
+// Log config presence (without exposing keys if possible, but identifying issues)
+console.log('Firebase Config loaded:', {
+  projectId: firebaseConfig.projectId,
+  hasDbUrl: !!firebaseConfig.databaseURL,
+  dbUrlRegion: firebaseConfig.databaseURL?.includes('asia') ? 'Asia' : 'Other'
+});
+
 // Lazy initialization - only initialize if config values are provided
-let initialized = false;
 let app: any = null;
 let database: any = null;
 
-const initializeFirebase = () => {
-  if (initialized) return;
-  initialized = true;
-  
-  // Only initialize if we have a projectId
+try {
   if (firebaseConfig.projectId && firebaseConfig.projectId.trim()) {
-    try {
-      console.log('Initializing Firebase with projectId:', firebaseConfig.projectId);
-      app = initializeApp(firebaseConfig);
-      database = getDatabase(app);
-      console.log('Firebase initialized successfully');
-    } catch (e) {
-      console.warn('Firebase initialization failed:', e);
-      app = null;
-      database = null;
-    }
+    console.log('Initializing Firebase with projectId:', firebaseConfig.projectId);
+    console.log('Database URL:', firebaseConfig.databaseURL ? firebaseConfig.databaseURL : 'MISSING');
+
+    app = initializeApp(firebaseConfig);
+    database = getDatabase(app);
+    console.log('Firebase initialized successfully');
   } else {
     console.warn('Firebase config incomplete - projectId missing or empty');
-    app = null;
-    database = null;
   }
-};
-
-// Schedule initialization but don't block module loading
-if (typeof window !== 'undefined') {
-  // Use requestIdleCallback if available, otherwise setTimeout
-  if ('requestIdleCallback' in window) {
-    requestIdleCallback(() => initializeFirebase());
-  } else {
-    setTimeout(initializeFirebase, 100);
-  }
+} catch (e) {
+  console.error('Firebase initialization failed:', e);
 }
 
 export { app, database };

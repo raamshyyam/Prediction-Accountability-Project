@@ -148,15 +148,19 @@ Return ONLY valid JSON, no additional text.`,
 
     // Validate and sanitize the response
     const vaguenessScore = Math.max(1, Math.min(10, Math.round(data.vaguenessScore || 5)));
-    const analysisParams = Array.isArray(data.analysisParams)
-      ? data.analysisParams.slice(0, 10).filter((p: any) => p && typeof p === 'object')
-      : [];
-    const verificationVectors = Array.isArray(data.verificationVectors)
-      ? data.verificationVectors.slice(0, 5).filter((v: any) => v && typeof v === 'object')
-      : [];
-    const webEvidence = Array.isArray(data.webEvidence)
-      ? data.webEvidence.slice(0, 5).filter((w: any) => w && typeof w === 'object')
-      : [];
+
+    // Safety check: ensure arrays exist before filtering
+    const analysisParams = (Array.isArray(data.analysisParams) ? data.analysisParams : [])
+      .slice(0, 10)
+      .filter((p: any) => p && typeof p === 'object');
+
+    const verificationVectors = (Array.isArray(data.verificationVectors) ? data.verificationVectors : [])
+      .slice(0, 5)
+      .filter((v: any) => v && typeof v === 'object');
+
+    const webEvidence = (Array.isArray(data.webEvidence) ? data.webEvidence : [])
+      .slice(0, 5)
+      .filter((w: any) => w && typeof w === 'object');
 
     return {
       vaguenessScore,
@@ -202,7 +206,7 @@ export const extractManifestoClaims = async (text: string, lang: 'en' | 'ne' = '
 
   if (!hasApiKey) {
     // Smart sentence splitting: extract sentences that look like promises/commitments
-    const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 10);
+    const sentences = text.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s && s.length > 10);
     // Filter for sentences that look like commitments (contain action verbs)
     const commitmentKeywords = ['will|shall|would|promise|commit|build|construct|improve|increase|decrease|establish|create|develop|ensure|maintain|strengthen|reduce|expand|launch|introduce|pass|approve|implement|guarantee|provide|offer|support|promote|enhance|reform|modernize|invest|allocate|fund|dedicate|allocate|raise|lower|eliminate|abolish|reform'];
     const commitmentRegex = new RegExp(commitmentKeywords.join(''), 'i');
