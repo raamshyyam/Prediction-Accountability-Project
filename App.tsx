@@ -35,6 +35,9 @@ function App() {
 
   const t = translations[lang];
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+
   // Check authentication on mount
   useEffect(() => {
     const authData = localStorage.getItem('pap_auth');
@@ -57,102 +60,98 @@ function App() {
   // Load data from Firebase or localStorage on mount
   useEffect(() => {
     const loadData = async () => {
+      setIsLoading(true);
       try {
-        // For now, skip Firebase and use localStorage + mock data directly
-        // This prevents any Firebase blocking issues
-        
         let claimsLoaded = false;
         let claimantsLoaded = false;
-        
-        // Try localStorage first for claims - check multiple possible keys
+
+        // 1. Try localStorage first (Fastest)
         const claimsKeys = ['pap_claims_v1', 'pap_claims', 'claims', 'claimData', 'CLAIMS'];
         let savedClaims = null;
         for (const key of claimsKeys) {
           const data = localStorage.getItem(key);
           if (data) {
-            console.log(`Found claims data under key: ${key}`);
             savedClaims = data;
             break;
           }
         }
-        
+
         if (savedClaims) {
           try {
             const parsed = JSON.parse(savedClaims);
             if (Array.isArray(parsed) && parsed.length > 0) {
               setClaims(parsed);
               claimsLoaded = true;
-              console.log(`✅ Loaded ${parsed.length} claims from localStorage`);
             }
           } catch (e) {
             console.error("Failed to parse saved claims:", e);
           }
         }
-        
-        // Try localStorage for claimants - check multiple possible keys
+
         const claimantsKeys = ['pap_claimants_v1', 'pap_claimants', 'claimants', 'claimantData', 'CLAIMANTS'];
         let savedClaimants = null;
         for (const key of claimantsKeys) {
           const data = localStorage.getItem(key);
           if (data) {
-            console.log(`Found claimants data under key: ${key}`);
             savedClaimants = data;
             break;
           }
         }
-        
+
         if (savedClaimants) {
           try {
             const parsed = JSON.parse(savedClaimants);
             if (Array.isArray(parsed) && parsed.length > 0) {
               setClaimants(parsed);
               claimantsLoaded = true;
-              console.log(`✅ Loaded ${parsed.length} claimants from localStorage`);
             }
           } catch (e) {
             console.error("Failed to parse saved claimants:", e);
           }
         }
-        
-        // Fall back to mock data if nothing loaded
-        if (!claimsLoaded) {
-          console.log('Using mock claims as fallback');
-          setClaims(MOCK_CLAIMS);
+
+        // 2. Try Firebase immediately (Async)
+        try {
+          // Parallel fetch for speed
+          const [firebaseClaims, firebaseClaimants] = await Promise.all([
+            getClaims(),
+            getClaimants()
+          ]);
+
+          if (firebaseClaims.length > 0) {
+            setClaims(firebaseClaims);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(firebaseClaims));
+            claimsLoaded = true;
+          }
+
+          if (firebaseClaimants.length > 0) {
+            setClaimants(firebaseClaimants);
+            localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(firebaseClaimants));
+            claimantsLoaded = true;
+          }
+        } catch (fbError) {
+          console.warn('Firebase fetch failed or not configured:', fbError);
         }
-        
+
+        // 3. Fallback to Mock Data ONLY if nothing found
+        if (!claimsLoaded) {
+          console.log('Using mock claims as fallback (Demo Mode)');
+          setClaims(MOCK_CLAIMS);
+          setIsDemoMode(true);
+        }
+
         if (!claimantsLoaded) {
           console.log('Using mock claimants as fallback');
           setClaimants(MOCK_CLAIMANTS);
         }
-        
-        // Optionally try Firebase in the background (non-blocking)
-        setTimeout(async () => {
-          try {
-            const firebaseClaims = await getClaims();
-            if (firebaseClaims.length > 0) {
-              setClaims(firebaseClaims);
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(firebaseClaims));
-            }
-          } catch (fbError) {
-            console.warn('Firebase claims fetch failed:', fbError);
-          }
-          
-          try {
-            const firebaseClaimants = await getClaimants();
-            if (firebaseClaimants.length > 0) {
-              setClaimants(firebaseClaimants);
-              localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(firebaseClaimants));
-            }
-          } catch (fbError) {
-            console.warn('Firebase claimants fetch failed:', fbError);
-          }
-        }, 5000); // Try Firebase after 5 seconds
-        
+
       } catch (err) {
         console.error('Error in loadData:', err);
-        // Ensure we always have mock data as absolute fallback
         setClaims(MOCK_CLAIMS);
         setClaimants(MOCK_CLAIMANTS);
+        setIsDemoMode(true);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -168,7 +167,7 @@ function App() {
       } catch (e) {
         console.error("Failed to save claims to localStorage", e);
       }
-      
+
       // Try to sync to Firebase
       syncAllClaims(claims).catch(e => {
         console.warn("Failed to sync claims to Firebase (will retry later):", e);
@@ -185,7 +184,7 @@ function App() {
       } catch (e) {
         console.error("Failed to save claimants to localStorage", e);
       }
-      
+
       // Try to sync to Firebase
       syncAllClaimants(claimants).catch(e => {
         console.warn("Failed to sync claimants to Firebase (will retry later):", e);
@@ -199,7 +198,7 @@ function App() {
       const textMatch = c.text.toLowerCase().includes(searchQuery.toLowerCase());
       const nameMatch = claimant?.name.toLowerCase().includes(searchQuery.toLowerCase());
       const topicMatch = c.topicGroup?.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       const matchesSearch = textMatch || nameMatch || topicMatch;
       const matchesCategory = selectedCategory === 'All' || c.category === selectedCategory;
       return matchesSearch && matchesCategory;
@@ -235,7 +234,7 @@ function App() {
           totalClaims: 1,
           tags: [newClaimData.category]
         };
-        
+
         // Try to auto-detect claimant info using AI
         searchClaimantBackground(newClaimData.claimantName)
           .then(backgroundInfo => {
@@ -251,10 +250,10 @@ function App() {
             }
           })
           .catch(err => console.warn('Claimant background detection failed:', err));
-        
+
         setClaimants(prev => [...prev, claimant!]);
       }
-      
+
       const claim: Claim = {
         ...newClaimData,
         id: `new-${Date.now()}`,
@@ -325,7 +324,15 @@ function App() {
 
   return (
     <div className={`min-h-screen transition-all duration-500 ${lang === 'ne' ? 'font-sans' : 'font-inter'}`}>
-      <Header 
+      {isLoading && (
+        <div className="fixed inset-0 bg-white/80 z-50 flex items-center justify-center backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-slate-500 font-medium animate-pulse">Loading data...</p>
+          </div>
+        </div>
+      )}
+      <Header
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         lang={lang}
@@ -333,12 +340,26 @@ function App() {
         isAdmin={isAdmin}
         onLogout={handleLogout}
       />
-      
+
+      {isDemoMode && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between text-amber-800 text-sm">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <span className="font-medium">
+                {lang === 'ne' ? 'तपाईं डेमो मोड हेर्दै हुनुहुन्छ (डेटाबेस जडान छैन)' : 'You are viewing Demo Mode (Database not connected)'}
+              </span>
+            </div>
+            {!isAdmin && <button onClick={() => setIsModalOpen(true)} className="text-amber-900 underline font-bold">Try adding a claim</button>}
+          </div>
+        </div>
+      )}
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10">
           <div className="bg-white p-1.5 rounded-2xl border border-slate-200 inline-flex shadow-sm overflow-x-auto max-w-full">
             {(['claims', 'claimants', 'manifesto', 'dashboard', 'about'] as const).map((tab) => (
-              <button 
+              <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`px-6 sm:px-8 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all whitespace-nowrap ${activeTab === tab ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' : 'text-slate-500 hover:text-slate-800'}`}
@@ -352,7 +373,7 @@ function App() {
             ))}
           </div>
 
-          <button 
+          <button
             onClick={() => { setEditClaim(null); setIsModalOpen(true); }}
             className="w-full sm:w-auto px-8 py-3 bg-slate-900 text-white font-black rounded-2xl hover:bg-slate-800 transition-all shadow-2xl shadow-slate-200 flex items-center justify-center gap-3"
           >
@@ -374,14 +395,14 @@ function App() {
                 </button>
               ))}
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {filteredClaims.map(claim => (
-                <ClaimCard 
-                  key={claim.id} 
-                  claim={claim} 
+                <ClaimCard
+                  key={claim.id}
+                  claim={claim}
                   claimants={claimants}
-                  lang={lang} 
+                  lang={lang}
                   isAdmin={isAdmin}
                   onTranslate={translateText}
                   onUpdateClaim={handleUpdateClaim}
@@ -413,8 +434,8 @@ function App() {
         {activeTab === 'claimants' && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {claimants.map(claimant => (
-              <button 
-                key={claimant.id} 
+              <button
+                key={claimant.id}
                 onClick={() => setSelectedClaimantProfile(claimant)}
                 className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 flex flex-col items-center text-center group hover:shadow-xl transition-all hover:border-blue-300 cursor-pointer"
               >
@@ -422,8 +443,8 @@ function App() {
                 <h3 className="text-xl font-black text-slate-800">{claimant.name}</h3>
                 <p className="text-sm text-blue-600 font-bold mb-3">{claimant.affiliation}</p>
                 <div className="w-full grid grid-cols-2 gap-4 border-t border-slate-50 pt-8 mt-4 text-xs">
-                    <div className="text-left"><p className="font-black text-slate-300 uppercase">{t.claims}</p><p className="text-lg font-black text-slate-700">{claimant.totalClaims}</p></div>
-                    <div className="text-right"><p className="font-black text-slate-300 uppercase">{t.accuracy}</p><p className="text-lg font-black text-slate-700">{claimant.accuracyRate}%</p></div>
+                  <div className="text-left"><p className="font-black text-slate-300 uppercase">{t.claims}</p><p className="text-lg font-black text-slate-700">{claimant.totalClaims}</p></div>
+                  <div className="text-right"><p className="font-black text-slate-300 uppercase">{t.accuracy}</p><p className="text-lg font-black text-slate-700">{claimant.accuracyRate}%</p></div>
                 </div>
               </button>
             ))}
@@ -431,11 +452,11 @@ function App() {
         )}
       </main>
 
-      <AddClaimModal 
-        isOpen={isModalOpen} 
+      <AddClaimModal
+        isOpen={isModalOpen}
         lang={lang}
         editData={editClaim}
-        onClose={() => { setIsModalOpen(false); setEditClaim(null); }} 
+        onClose={() => { setIsModalOpen(false); setEditClaim(null); }}
         onAdd={handleAddClaim}
       />
 
