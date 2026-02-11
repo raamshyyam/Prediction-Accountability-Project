@@ -36,13 +36,13 @@ export const ClaimAnalysis: React.FC<Props> = ({ claim, lang, onUpdateParams }) 
           <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex justify-between">
             {t.vagueBoxes}
             <span className="text-blue-600">
-              {claim.analysisParams.filter(p => p.fulfilled).length}/{claim.analysisParams.length}
+              {(claim.analysisParams || []).filter(p => p.fulfilled).length}/{(claim.analysisParams || []).length}
             </span>
           </h4>
           <div className="space-y-2 mb-4">
-            {claim.analysisParams.map((param, i) => (
-              <div 
-                key={i} 
+            {(claim.analysisParams || []).map((param, i) => (
+              <div
+                key={i}
                 className="flex items-center gap-2 text-xs group cursor-pointer"
                 onClick={() => toggleParam(i)}
               >
@@ -56,16 +56,16 @@ export const ClaimAnalysis: React.FC<Props> = ({ claim, lang, onUpdateParams }) 
               </div>
             ))}
           </div>
-          
+
           <div className="flex gap-2">
-            <input 
+            <input
               className="flex-1 text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500"
               placeholder={t.addParam}
               value={newParamLabel}
               onChange={(e) => setNewParamLabel(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addHumanParam()}
             />
-            <button 
+            <button
               onClick={addHumanParam}
               className="px-3 py-2 bg-blue-600 text-white text-[10px] font-bold rounded-lg hover:bg-blue-700"
             >
@@ -81,10 +81,9 @@ export const ClaimAnalysis: React.FC<Props> = ({ claim, lang, onUpdateParams }) 
               <div key={i} className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-xs font-bold text-slate-800">{vector.modelName}</span>
-                  <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${
-                    vector.verdict === 'Fulfilled' ? 'bg-green-100 text-green-700' : 
-                    vector.verdict === 'Disproven' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-                  }`}>
+                  <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${vector.verdict === 'Fulfilled' ? 'bg-green-100 text-green-700' :
+                      vector.verdict === 'Disproven' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                    }`}>
                     {vector.verdict}
                   </span>
                 </div>
@@ -121,7 +120,7 @@ export const ClaimAnalysis: React.FC<Props> = ({ claim, lang, onUpdateParams }) 
           <div className="flex flex-wrap gap-2">
             {claim.webEvidenceLinks.map((link, i) => (
               <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-white border border-slate-200 rounded-full text-xs text-blue-600 hover:bg-blue-50 transition-colors flex items-center gap-2">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 {link.title}
               </a>
             ))}

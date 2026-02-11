@@ -37,7 +37,7 @@ try {
     console.warn('Firebase config incomplete - projectId missing or empty');
   }
 } catch (e) {
-  console.error('Firebase initialization failed:', e);
+  console.error('Firebase initialization failed. Check your .env file and ensure all keys start with VITE_. Error details:', e);
 }
 
 export { app, database };
