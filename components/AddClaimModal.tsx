@@ -32,7 +32,7 @@ export const AddClaimModal: React.FC<AddClaimModalProps> = ({ isOpen, lang, onCl
       setTopicGroup(editData.topicGroup || '');
       setStatus(editData.status);
       setTargetDate(editData.targetDate);
-      setSources(editData.sources.length > 0 ? editData.sources : [{ type: SourceType.NEWS, url: '' }]);
+      setSources(Array.isArray(editData.sources) && editData.sources.length > 0 ? editData.sources : [{ type: SourceType.NEWS, url: '' }]);
       setDescription('');
     } else {
       setText('');

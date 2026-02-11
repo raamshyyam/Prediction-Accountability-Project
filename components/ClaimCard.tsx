@@ -39,6 +39,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, on
   const [translatedText, setTranslatedText] = useState<string>(claim.text);
   const [translating, setTranslating] = useState(false);
   const claimant = claimants.find(c => c.id === claim.claimantId);
+  const claimSources = Array.isArray(claim.sources) ? claim.sources : [];
   const t = translations[lang];
 
   React.useEffect(() => {
@@ -84,7 +85,7 @@ export const ClaimCard: React.FC<ClaimCardProps> = ({ claim, claimants, lang, on
           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${statusColors[claim.status]}`}>
             {t.statuses[claim.status as keyof typeof t.statuses] || claim.status}
           </span>
-          {claim.sources.map((s, i) => (
+          {claimSources.map((s, i) => (
             <span key={i} className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-100 text-slate-500">
               {s.type}
             </span>

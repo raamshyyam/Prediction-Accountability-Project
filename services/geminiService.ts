@@ -3,25 +3,30 @@ import { GoogleGenAI } from "@google/genai";
 let cachedAI: any = null;
 let apiKeyChecked = false;
 
+const readApiKey = (): string => {
+  try {
+    const key = (import.meta as any)?.env?.VITE_API_KEY;
+    if (typeof key === 'string') return key.trim();
+  } catch {
+    // ignore
+  }
+
+  try {
+    const key = (window as any)?.__ENV__?.VITE_API_KEY;
+    if (typeof key === 'string') return key.trim();
+  } catch {
+    // ignore
+  }
+
+  return '';
+};
+
 const getAI = () => {
   if (cachedAI && apiKeyChecked) {
     return cachedAI;
   }
 
-  // Access API key from Vite environment (requires VITE_ prefix for client-side)
-  let apiKey = '';
-
-  // Try different sources for the API key
-  try {
-    apiKey = (import.meta.env?.VITE_API_KEY || '').trim();
-  } catch (e) {
-    // import.meta not available, try process.env
-    apiKey = (process.env?.VITE_API_KEY || '').trim();
-  }
-
-  if (!apiKey && typeof window !== 'undefined' && (window as any).__ENV__) {
-    apiKey = ((window as any).__ENV__.VITE_API_KEY || '').trim();
-  }
+  const apiKey = readApiKey();
 
   if (!apiKey) {
     console.error("CRITICAL: Gemini API Key is missing. Set VITE_API_KEY in your Vercel environment variables or .env file.");
@@ -38,17 +43,8 @@ const getAI = () => {
 export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 'en') => {
   try {
     // If API key isn't available, return a local heuristic analysis
-    const hasApiKey = (() => {
-      try {
-        const k = (import.meta.env?.VITE_API_KEY || '').trim();
-        if (k && k !== 'YOUR_GEMINI_API_KEY_HERE') return true;
-      } catch (e) { }
-      try {
-        // runtime fallback
-        if (typeof (window as any) !== 'undefined' && (window as any).__ENV__ && (window as any).__ENV__.VITE_API_KEY) return true;
-      } catch (e) { }
-      return false;
-    })();
+    const apiKey = readApiKey();
+    const hasApiKey = apiKey !== '' && apiKey !== 'YOUR_GEMINI_API_KEY_HERE';
 
     const heuristicVagueness = (text: string) => {
       if (!text || !text.trim()) return 5;
@@ -193,16 +189,8 @@ Return ONLY valid JSON, no additional text.`,
 
 export const extractManifestoClaims = async (text: string, lang: 'en' | 'ne' = 'en') => {
   // If no API key, do a simple sentence-splitting heuristic
-  const hasApiKey = (() => {
-    try {
-      const k = (import.meta.env?.VITE_API_KEY || '').trim();
-      if (k && k !== 'YOUR_GEMINI_API_KEY_HERE') return true;
-    } catch (e) { }
-    try {
-      if (typeof (window as any) !== 'undefined' && (window as any).__ENV__ && (window as any).__ENV__.VITE_API_KEY) return true;
-    } catch (e) { }
-    return false;
-  })();
+  const apiKey = readApiKey();
+  const hasApiKey = apiKey !== '' && apiKey !== 'YOUR_GEMINI_API_KEY_HERE';
 
   if (!hasApiKey) {
     // Smart sentence splitting: extract sentences that look like promises/commitments
@@ -303,16 +291,8 @@ Return ONLY valid JSON.`,
 
 export const generateVaguenessInsight = async (claimText: string, vaguenessScore: number) => {
   // If API key isn't present, return a local heuristic explanation
-  const hasApiKey = (() => {
-    try {
-      const k = (import.meta.env?.VITE_API_KEY || '').trim();
-      if (k && k !== 'YOUR_GEMINI_API_KEY_HERE') return true;
-    } catch (e) { }
-    try {
-      if (typeof (window as any) !== 'undefined' && (window as any).__ENV__ && (window as any).__ENV__.VITE_API_KEY) return true;
-    } catch (e) { }
-    return false;
-  })();
+  const apiKey = readApiKey();
+  const hasApiKey = apiKey !== '' && apiKey !== 'YOUR_GEMINI_API_KEY_HERE';
 
   const generateLocalInsight = (): string => {
     const parts = [] as string[];

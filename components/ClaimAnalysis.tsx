@@ -12,9 +12,12 @@ interface Props {
 export const ClaimAnalysis: React.FC<Props> = ({ claim, lang, onUpdateParams }) => {
   const t = translations[lang];
   const [newParamLabel, setNewParamLabel] = useState('');
+  const analysisParams = Array.isArray(claim.analysisParams) ? claim.analysisParams : [];
+  const verificationVectors = Array.isArray(claim.verificationVectors) ? claim.verificationVectors : [];
 
   const toggleParam = (index: number) => {
-    const next = [...claim.analysisParams];
+    const next = [...analysisParams];
+    if (!next[index]) return;
     next[index].fulfilled = !next[index].fulfilled;
     onUpdateParams(next);
   };
@@ -22,7 +25,7 @@ export const ClaimAnalysis: React.FC<Props> = ({ claim, lang, onUpdateParams }) 
   const addHumanParam = () => {
     if (!newParamLabel.trim()) return;
     const next = [
-      ...claim.analysisParams,
+      ...analysisParams,
       { label: newParamLabel, fulfilled: false, isHumanAdded: true }
     ];
     onUpdateParams(next);
@@ -36,11 +39,11 @@ export const ClaimAnalysis: React.FC<Props> = ({ claim, lang, onUpdateParams }) 
           <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 flex justify-between">
             {t.vagueBoxes}
             <span className="text-blue-600">
-              {(claim.analysisParams || []).filter(p => p.fulfilled).length}/{(claim.analysisParams || []).length}
+              {analysisParams.filter(p => p.fulfilled).length}/{analysisParams.length}
             </span>
           </h4>
           <div className="space-y-2 mb-4">
-            {(claim.analysisParams || []).map((param, i) => (
+            {analysisParams.map((param, i) => (
               <div
                 key={i}
                 className="flex items-center gap-2 text-xs group cursor-pointer"
@@ -77,7 +80,7 @@ export const ClaimAnalysis: React.FC<Props> = ({ claim, lang, onUpdateParams }) 
         <div>
           <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">{t.vectors}</h4>
           <div className="space-y-3">
-            {claim.verificationVectors.map((vector, i) => (
+            {verificationVectors.map((vector, i) => (
               <div key={i} className="bg-slate-50 p-3 rounded-lg border border-slate-200">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-xs font-bold text-slate-800">{vector.modelName}</span>

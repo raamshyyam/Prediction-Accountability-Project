@@ -1,20 +1,35 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 
-// ⚠️ IMPORTANT: Replace these with your Firebase Config
-// Get these values from Firebase Console: https://console.firebase.google.com/
-// Project Settings -> General -> Web App Config
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_AUTH_DOMAIN || "",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || "",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || process.env.FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || process.env.FIREBASE_APP_ID || "",
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || process.env.FIREBASE_DATABASE_URL || ""
+const readEnv = (key: string): string => {
+  try {
+    const fromVite = (import.meta as any)?.env?.[key];
+    if (typeof fromVite === 'string' && fromVite.trim()) return fromVite.trim();
+  } catch {
+    // ignore
+  }
+
+  try {
+    const fromWindow = (window as any)?.__ENV__?.[key];
+    if (typeof fromWindow === 'string' && fromWindow.trim()) return fromWindow.trim();
+  } catch {
+    // ignore
+  }
+
+  return '';
 };
 
-// Log config presence (without exposing keys if possible, but identifying issues)
+// IMPORTANT: Use VITE_ keys because this file runs in the browser bundle.
+const firebaseConfig = {
+  apiKey: readEnv('VITE_FIREBASE_API_KEY'),
+  authDomain: readEnv('VITE_FIREBASE_AUTH_DOMAIN'),
+  projectId: readEnv('VITE_FIREBASE_PROJECT_ID'),
+  storageBucket: readEnv('VITE_FIREBASE_STORAGE_BUCKET'),
+  messagingSenderId: readEnv('VITE_FIREBASE_MESSAGING_SENDER_ID'),
+  appId: readEnv('VITE_FIREBASE_APP_ID'),
+  databaseURL: readEnv('VITE_FIREBASE_DATABASE_URL')
+};
+
 console.log('Firebase Config loaded:', {
   projectId: firebaseConfig.projectId,
   hasDbUrl: !!firebaseConfig.databaseURL,
@@ -41,4 +56,3 @@ try {
 }
 
 export { app, database };
-

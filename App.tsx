@@ -10,14 +10,45 @@ import { ClaimantProfile } from './components/ClaimantProfile.tsx';
 import { ManifestoTracker } from './components/ManifestoTracker.tsx';
 import { AboutPage } from './components/AboutPage.tsx';
 import { MOCK_CLAIMS, MOCK_CLAIMANTS } from './constants.ts';
-import { Claim, Category, Language, Status, Claimant } from './types.ts';
+import { Claim, Category, Language, Status, Claimant, SourceType } from './types.ts';
 import { translations } from './translations.ts';
-import { getClaims, getClaimants, syncAllClaims, syncAllClaimants, saveClaim, saveClaimant } from './services/databaseService.ts';
+import { getClaims, getClaimants, syncAllClaims, syncAllClaimants } from './services/databaseService.ts';
 import { logAIStatus } from './utils/aiConfig.ts';
 import { searchClaimantBackground } from './services/geminiService.ts';
 
 const STORAGE_KEY = 'pap_claims_v1';
 const CLAIMANTS_KEY = 'pap_claimants_v1';
+
+const normalizeClaim = (raw: any): Claim => ({
+  id: String(raw?.id || `claim-${Date.now()}`),
+  claimantId: String(raw?.claimantId || ''),
+  text: String(raw?.text || ''),
+  dateMade: String(raw?.dateMade || new Date().toISOString().split('T')[0]),
+  targetDate: String(raw?.targetDate || new Date().toISOString().split('T')[0]),
+  category: Object.values(Category).includes(raw?.category) ? raw.category : Category.POLITICS,
+  status: Object.values(Status).includes(raw?.status) ? raw.status : Status.ONGOING,
+  sources: Array.isArray(raw?.sources)
+    ? raw.sources.filter((s: any) => s && typeof s === 'object' && s.url).map((s: any) => ({ type: s.type || SourceType.NEWS, url: String(s.url), screenshotUrl: s.screenshotUrl }))
+    : [],
+  vaguenessIndex: Number.isFinite(raw?.vaguenessIndex) ? Math.max(1, Math.min(10, Number(raw.vaguenessIndex))) : 5,
+  analysisParams: Array.isArray(raw?.analysisParams) ? raw.analysisParams.filter((p: any) => p && typeof p === 'object' && p.label) : [],
+  verificationVectors: Array.isArray(raw?.verificationVectors) ? raw.verificationVectors.filter((v: any) => v && typeof v === 'object') : [],
+  webEvidenceLinks: Array.isArray(raw?.webEvidenceLinks) ? raw.webEvidenceLinks.filter((w: any) => w && typeof w === 'object' && w.url) : [],
+  topicGroup: raw?.topicGroup ? String(raw.topicGroup) : undefined,
+  history: Array.isArray(raw?.history) ? raw.history.filter((h: any) => h && typeof h === 'object' && h.timestamp) : []
+});
+
+const normalizeClaimant = (raw: any): Claimant => ({
+  id: String(raw?.id || `claimant-${Date.now()}`),
+  name: String(raw?.name || 'Unknown'),
+  bio: String(raw?.bio || ''),
+  affiliation: String(raw?.affiliation || 'Independent'),
+  photoUrl: String(raw?.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(String(raw?.name || 'Unknown'))}`),
+  accuracyRate: Number.isFinite(raw?.accuracyRate) ? Number(raw.accuracyRate) : 0,
+  vaguenessScore: Number.isFinite(raw?.vaguenessScore) ? Number(raw.vaguenessScore) : 5,
+  totalClaims: Number.isFinite(raw?.totalClaims) ? Number(raw.totalClaims) : 0,
+  tags: Array.isArray(raw?.tags) ? raw.tags.map((tag: any) => String(tag)) : []
+});
 
 function App() {
   const [lang, setLang] = useState<Language>('en');
@@ -64,6 +95,7 @@ function App() {
       try {
         let claimsLoaded = false;
         let claimantsLoaded = false;
+        let firebaseReachable = false;
 
         // 1. Try localStorage first (Fastest)
         const claimsKeys = ['pap_claims_v1', 'pap_claims', 'claims', 'claimData', 'CLAIMS'];
@@ -80,7 +112,7 @@ function App() {
           try {
             const parsed = JSON.parse(savedClaims);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              setClaims(parsed);
+              setClaims(parsed.map(normalizeClaim));
               claimsLoaded = true;
             }
           } catch (e) {
@@ -102,7 +134,7 @@ function App() {
           try {
             const parsed = JSON.parse(savedClaimants);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              setClaimants(parsed);
+              setClaimants(parsed.map(normalizeClaimant));
               claimantsLoaded = true;
             }
           } catch (e) {
@@ -117,38 +149,39 @@ function App() {
             getClaims(),
             getClaimants()
           ]);
+          firebaseReachable = true;
 
-          if (firebaseClaims.length > 0) {
-            setClaims(firebaseClaims);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(firebaseClaims));
-            claimsLoaded = true;
-          }
+          const normalizedFirebaseClaims = firebaseClaims.map(normalizeClaim);
+          const normalizedFirebaseClaimants = firebaseClaimants.map(normalizeClaimant);
 
-          if (firebaseClaimants.length > 0) {
-            setClaimants(firebaseClaimants);
-            localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(firebaseClaimants));
-            claimantsLoaded = true;
-          }
+          // Firebase is the shared source of truth across devices; always prefer it when reachable.
+          setClaims(normalizedFirebaseClaims);
+          setClaimants(normalizedFirebaseClaimants);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedFirebaseClaims));
+          localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(normalizedFirebaseClaimants));
+          claimsLoaded = true;
+          claimantsLoaded = true;
+          setIsDemoMode(false);
         } catch (fbError) {
           console.warn('Firebase fetch failed or not configured:', fbError);
         }
 
         // 3. Fallback to Mock Data ONLY if nothing found
-        if (!claimsLoaded) {
+        if (!claimsLoaded && !firebaseReachable) {
           console.log('Using mock claims as fallback (Demo Mode)');
-          setClaims(MOCK_CLAIMS);
+          setClaims(MOCK_CLAIMS.map(normalizeClaim));
           setIsDemoMode(true);
         }
 
-        if (!claimantsLoaded) {
+        if (!claimantsLoaded && !firebaseReachable) {
           console.log('Using mock claimants as fallback');
-          setClaimants(MOCK_CLAIMANTS);
+          setClaimants(MOCK_CLAIMANTS.map(normalizeClaimant));
         }
 
       } catch (err) {
         console.error('Error in loadData:', err);
-        setClaims(MOCK_CLAIMS);
-        setClaimants(MOCK_CLAIMANTS);
+        setClaims(MOCK_CLAIMS.map(normalizeClaim));
+        setClaimants(MOCK_CLAIMANTS.map(normalizeClaimant));
         setIsDemoMode(true);
       } finally {
         setIsLoading(false);
@@ -160,37 +193,37 @@ function App() {
 
   // Sync claims to both localStorage and Firebase
   useEffect(() => {
-    if (claims.length > 0) {
-      // Always save to localStorage as backup
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(claims));
-      } catch (e) {
-        console.error("Failed to save claims to localStorage", e);
-      }
+    if (isLoading || isDemoMode) return;
 
-      // Try to sync to Firebase
-      syncAllClaims(claims).catch(e => {
-        console.warn("Failed to sync claims to Firebase (will retry later):", e);
-      });
+    // Always save to localStorage as backup
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(claims));
+    } catch (e) {
+      console.error("Failed to save claims to localStorage", e);
     }
-  }, [claims]);
+
+    // Try to sync to Firebase
+    syncAllClaims(claims).catch(e => {
+      console.warn("Failed to sync claims to Firebase (will retry later):", e);
+    });
+  }, [claims, isDemoMode, isLoading]);
 
   // Sync claimants to both localStorage and Firebase
   useEffect(() => {
-    if (claimants.length > 0) {
-      // Always save to localStorage as backup
-      try {
-        localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(claimants));
-      } catch (e) {
-        console.error("Failed to save claimants to localStorage", e);
-      }
+    if (isLoading || isDemoMode) return;
 
-      // Try to sync to Firebase
-      syncAllClaimants(claimants).catch(e => {
-        console.warn("Failed to sync claimants to Firebase (will retry later):", e);
-      });
+    // Always save to localStorage as backup
+    try {
+      localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(claimants));
+    } catch (e) {
+      console.error("Failed to save claimants to localStorage", e);
     }
-  }, [claimants]);
+
+    // Try to sync to Firebase
+    syncAllClaimants(claimants).catch(e => {
+      console.warn("Failed to sync claimants to Firebase (will retry later):", e);
+    });
+  }, [claimants, isDemoMode, isLoading]);
 
   const filteredClaims = useMemo(() => {
     return claims.filter(c => {
@@ -254,13 +287,13 @@ function App() {
         setClaimants(prev => [...prev, claimant!]);
       }
 
-      const claim: Claim = {
+      const claim: Claim = normalizeClaim({
         ...newClaimData,
         id: `new-${Date.now()}`,
         claimantId: claimant!.id,
         dateMade: new Date().toISOString().split('T')[0],
         history: []
-      };
+      });
       setClaims(prev => [claim, ...prev]);
     }
     setEditClaim(null);
@@ -276,8 +309,9 @@ function App() {
     try {
       const importedClaims = JSON.parse(jsonStr);
       if (Array.isArray(importedClaims)) {
-        setClaims(importedClaims);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(importedClaims));
+        const normalizedClaims = importedClaims.map(normalizeClaim);
+        setClaims(normalizedClaims);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedClaims));
         alert(lang === 'ne' ? 'डाटा सफलतापूर्वक अपलोड भयो!' : 'Data imported successfully!');
       }
     } catch (e) {
@@ -286,7 +320,8 @@ function App() {
   };
 
   const handleUpdateClaim = (updatedClaim: Claim) => {
-    setClaims(prev => prev.map(c => c.id === updatedClaim.id ? updatedClaim : c));
+    const safeClaim = normalizeClaim(updatedClaim);
+    setClaims(prev => prev.map(c => c.id === safeClaim.id ? safeClaim : c));
   };
 
   const handleEditClick = (claim: Claim) => {
