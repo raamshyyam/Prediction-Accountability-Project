@@ -12,7 +12,7 @@ import { AboutPage } from './components/AboutPage.tsx';
 import { MOCK_CLAIMS, MOCK_CLAIMANTS } from './constants.ts';
 import { Claim, Category, Language, Status, Claimant, SourceType } from './types.ts';
 import { translations } from './translations.ts';
-import { getClaims, getClaimants, syncAllClaims, syncAllClaimants } from './services/databaseService.ts';
+import { getClaims, getClaimants, syncAllClaims, syncAllClaimants, isCloudSyncConfigured } from './services/databaseService.ts';
 import { logAIStatus } from './utils/aiConfig.ts';
 import { searchClaimantBackground } from './services/geminiService.ts';
 
@@ -95,7 +95,7 @@ function App() {
       try {
         let claimsLoaded = false;
         let claimantsLoaded = false;
-        let firebaseReachable = false;
+        const cloudSyncReady = isCloudSyncConfigured();
 
         // 1. Try localStorage first (Fastest)
         const claimsKeys = ['pap_claims_v1', 'pap_claims', 'claims', 'claimData', 'CLAIMS'];
@@ -142,38 +142,46 @@ function App() {
           }
         }
 
-        // 2. Try Firebase immediately (Async)
-        try {
-          // Parallel fetch for speed
-          const [firebaseClaims, firebaseClaimants] = await Promise.all([
-            getClaims(),
-            getClaimants()
-          ]);
-          firebaseReachable = true;
+        // 2. Try Firebase when configured
+        if (cloudSyncReady) {
+          try {
+            const [firebaseClaims, firebaseClaimants] = await Promise.all([
+              getClaims(),
+              getClaimants()
+            ]);
 
-          const normalizedFirebaseClaims = firebaseClaims.map(normalizeClaim);
-          const normalizedFirebaseClaimants = firebaseClaimants.map(normalizeClaimant);
+            const normalizedFirebaseClaims = firebaseClaims.map(normalizeClaim);
+            const normalizedFirebaseClaimants = firebaseClaimants.map(normalizeClaimant);
 
-          // Firebase is the shared source of truth across devices; always prefer it when reachable.
-          setClaims(normalizedFirebaseClaims);
-          setClaimants(normalizedFirebaseClaimants);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedFirebaseClaims));
-          localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(normalizedFirebaseClaimants));
-          claimsLoaded = true;
-          claimantsLoaded = true;
-          setIsDemoMode(false);
-        } catch (fbError) {
-          console.warn('Firebase fetch failed or not configured:', fbError);
+            // Prefer cloud data only when it exists. If cloud is empty, keep local data if present.
+            if (normalizedFirebaseClaims.length > 0 || !claimsLoaded) {
+              setClaims(normalizedFirebaseClaims);
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedFirebaseClaims));
+              claimsLoaded = true;
+            }
+
+            if (normalizedFirebaseClaimants.length > 0 || !claimantsLoaded) {
+              setClaimants(normalizedFirebaseClaimants);
+              localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(normalizedFirebaseClaimants));
+              claimantsLoaded = true;
+            }
+
+            setIsDemoMode(false);
+          } catch (fbError) {
+            console.warn('Firebase fetch failed:', fbError);
+          }
+        } else {
+          console.warn('Cloud sync disabled: Firebase is not configured.');
         }
 
         // 3. Fallback to Mock Data ONLY if nothing found
-        if (!claimsLoaded && !firebaseReachable) {
+        if (!claimsLoaded) {
           console.log('Using mock claims as fallback (Demo Mode)');
           setClaims(MOCK_CLAIMS.map(normalizeClaim));
           setIsDemoMode(true);
         }
 
-        if (!claimantsLoaded && !firebaseReachable) {
+        if (!claimantsLoaded) {
           console.log('Using mock claimants as fallback');
           setClaimants(MOCK_CLAIMANTS.map(normalizeClaimant));
         }
@@ -194,6 +202,7 @@ function App() {
   // Sync claims to both localStorage and Firebase
   useEffect(() => {
     if (isLoading || isDemoMode) return;
+    const cloudSyncReady = isCloudSyncConfigured();
 
     // Always save to localStorage as backup
     try {
@@ -201,6 +210,8 @@ function App() {
     } catch (e) {
       console.error("Failed to save claims to localStorage", e);
     }
+
+    if (!cloudSyncReady) return;
 
     // Try to sync to Firebase
     syncAllClaims(claims).catch(e => {
@@ -211,6 +222,7 @@ function App() {
   // Sync claimants to both localStorage and Firebase
   useEffect(() => {
     if (isLoading || isDemoMode) return;
+    const cloudSyncReady = isCloudSyncConfigured();
 
     // Always save to localStorage as backup
     try {
@@ -218,6 +230,8 @@ function App() {
     } catch (e) {
       console.error("Failed to save claimants to localStorage", e);
     }
+
+    if (!cloudSyncReady) return;
 
     // Try to sync to Firebase
     syncAllClaimants(claimants).catch(e => {

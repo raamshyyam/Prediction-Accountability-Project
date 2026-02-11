@@ -14,6 +14,8 @@ const isFirebaseConfigured = () => {
   }
 };
 
+export const isCloudSyncConfigured = (): boolean => isFirebaseConfigured();
+
 // Safe ref creation that doesn't throw
 const safeRef = (path: string) => {
   if (!database) return null;
