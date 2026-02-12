@@ -15,6 +15,7 @@ import { translations } from './translations.ts';
 import { getClaims, getClaimants, syncAllClaims, syncAllClaimants, isCloudSyncConfigured } from './services/databaseService.ts';
 import { logAIStatus } from './utils/aiConfig.ts';
 import { searchClaimantBackground } from './services/geminiService.ts';
+import { hasUsableGeminiApiKey, readPublicEnv } from './utils/envConfig.ts';
 
 const STORAGE_KEY = 'pap_claims_v1';
 const CLAIMANTS_KEY = 'pap_claimants_v1';
@@ -68,6 +69,25 @@ function App() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const isDev = Boolean((import.meta as any)?.env?.DEV);
+
+  const envDiagnostics = useMemo(() => {
+    const firebaseKeys = [
+      'VITE_FIREBASE_API_KEY',
+      'VITE_FIREBASE_AUTH_DOMAIN',
+      'VITE_FIREBASE_PROJECT_ID',
+      'VITE_FIREBASE_APP_ID',
+      'VITE_FIREBASE_DATABASE_URL'
+    ];
+
+    const missingFirebaseKeys = firebaseKeys.filter((key) => !readPublicEnv(key));
+
+    return {
+      missingFirebaseKeys,
+      firebaseConfigured: missingFirebaseKeys.length === 0,
+      aiConfigured: hasUsableGeminiApiKey()
+    };
+  }, []);
 
   // Check authentication on mount
   useEffect(() => {
@@ -96,6 +116,8 @@ function App() {
       try {
         let claimsLoaded = false;
         let claimantsLoaded = false;
+        let localClaimsSnapshot: Claim[] = [];
+        let localClaimantsSnapshot: Claimant[] = [];
 
         // 1. Try localStorage first (Fastest)
         const claimsKeys = ['pap_claims_v1', 'pap_claims', 'claims', 'claimData', 'CLAIMS'];
@@ -112,7 +134,8 @@ function App() {
           try {
             const parsed = JSON.parse(savedClaims);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              setClaims(parsed.map(normalizeClaim));
+              localClaimsSnapshot = parsed.map(normalizeClaim);
+              setClaims(localClaimsSnapshot);
               claimsLoaded = true;
             }
           } catch (e) {
@@ -134,7 +157,8 @@ function App() {
           try {
             const parsed = JSON.parse(savedClaimants);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              setClaimants(parsed.map(normalizeClaimant));
+              localClaimantsSnapshot = parsed.map(normalizeClaimant);
+              setClaimants(localClaimantsSnapshot);
               claimantsLoaded = true;
             }
           } catch (e) {
@@ -164,6 +188,21 @@ function App() {
 
           if (normalizedFirebaseClaims.length > 0 || normalizedFirebaseClaimants.length > 0) {
             setIsDemoMode(false);
+          }
+
+          // Cloud is reachable but empty: seed from local data so it becomes cross-browser/device.
+          if (cloudSyncReady && normalizedFirebaseClaims.length === 0 && localClaimsSnapshot.length > 0) {
+            const ok = await syncAllClaims(localClaimsSnapshot);
+            if (!ok) {
+              console.warn('Cloud seed failed for claims (local data remains local until next successful sync).');
+            }
+          }
+
+          if (cloudSyncReady && normalizedFirebaseClaimants.length === 0 && localClaimantsSnapshot.length > 0) {
+            const ok = await syncAllClaimants(localClaimantsSnapshot);
+            if (!ok) {
+              console.warn('Cloud seed failed for claimants (local data remains local until next successful sync).');
+            }
           }
         } catch (fbError) {
           console.warn('Cloud fetch failed:', fbError);
@@ -226,9 +265,15 @@ function App() {
     if (!cloudSyncReady) return;
 
     // Try to sync to Firebase
-    syncAllClaims(claims).catch(e => {
-      console.warn("Failed to sync claims to Firebase (will retry later):", e);
-    });
+    syncAllClaims(claims)
+      .then((ok) => {
+        if (!ok) {
+          console.warn("Claims sync returned false (Firebase/REST write failed).");
+        }
+      })
+      .catch(e => {
+        console.warn("Failed to sync claims to Firebase (will retry later):", e);
+      });
   }, [claims, isDemoMode, isLoading]);
 
   // Sync claimants to both localStorage and Firebase
@@ -246,9 +291,15 @@ function App() {
     if (!cloudSyncReady) return;
 
     // Try to sync to Firebase
-    syncAllClaimants(claimants).catch(e => {
-      console.warn("Failed to sync claimants to Firebase (will retry later):", e);
-    });
+    syncAllClaimants(claimants)
+      .then((ok) => {
+        if (!ok) {
+          console.warn("Claimants sync returned false (Firebase/REST write failed).");
+        }
+      })
+      .catch(e => {
+        console.warn("Failed to sync claimants to Firebase (will retry later):", e);
+      });
   }, [claimants, isDemoMode, isLoading]);
 
   const filteredClaims = useMemo(() => {
@@ -558,6 +609,23 @@ function App() {
             setSelectedClaimantProfile(updatedClaimant);
           }}
         />
+      )}
+
+      {isDev && (
+        <div className="fixed bottom-4 right-4 z-[60] w-[360px] max-w-[calc(100vw-2rem)] rounded-xl border border-slate-300 bg-white/95 backdrop-blur p-3 shadow-xl text-xs">
+          <div className="font-black text-slate-800 mb-2">Runtime Diagnostics (Dev)</div>
+          <div className={`font-bold ${envDiagnostics.firebaseConfigured ? 'text-green-700' : 'text-amber-700'}`}>
+            Firebase: {envDiagnostics.firebaseConfigured ? 'Configured' : 'Incomplete'}
+          </div>
+          {!envDiagnostics.firebaseConfigured && (
+            <div className="mt-1 text-slate-700 break-words">
+              Missing: {envDiagnostics.missingFirebaseKeys.join(', ')}
+            </div>
+          )}
+          <div className={`mt-2 font-bold ${envDiagnostics.aiConfigured ? 'text-green-700' : 'text-amber-700'}`}>
+            Gemini AI: {envDiagnostics.aiConfigured ? 'Configured' : 'Missing/invalid VITE_API_KEY'}
+          </div>
+        </div>
       )}
     </div>
   );
