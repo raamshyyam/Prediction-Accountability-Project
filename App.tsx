@@ -95,7 +95,6 @@ function App() {
       try {
         let claimsLoaded = false;
         let claimantsLoaded = false;
-        const cloudSyncReady = isCloudSyncConfigured();
 
         // 1. Try localStorage first (Fastest)
         const claimsKeys = ['pap_claims_v1', 'pap_claims', 'claims', 'claimData', 'CLAIMS'];
@@ -142,42 +141,31 @@ function App() {
           }
         }
 
-        // 2. Try Firebase when configured
-        if (cloudSyncReady) {
-          try {
-            // Parallel fetch for speed with timeout
-            const fetchPromise = Promise.all([getClaims(), getClaimants()]);
-            const timeoutPromise = new Promise<[any[], any[]]>((resolve) =>
-              setTimeout(() => {
-                console.warn('Firebase fetch timed out');
-                resolve([[], []]);
-              }, 5000)
-            );
+        // 2. Try cloud/shared data (SDK first, REST fallback handled in database service)
+        try {
+          const [firebaseClaims, firebaseClaimants] = await Promise.all([getClaims(), getClaimants()]);
 
-            const [firebaseClaims, firebaseClaimants] = await Promise.race([fetchPromise, timeoutPromise]);
+          const normalizedFirebaseClaims = firebaseClaims.map(normalizeClaim);
+          const normalizedFirebaseClaimants = firebaseClaimants.map(normalizeClaimant);
 
-            const normalizedFirebaseClaims = firebaseClaims.map(normalizeClaim);
-            const normalizedFirebaseClaimants = firebaseClaimants.map(normalizeClaimant);
-
-            // Prefer cloud data only when it exists. If cloud is empty, keep local data if present.
-            if (normalizedFirebaseClaims.length > 0 || !claimsLoaded) {
-              setClaims(normalizedFirebaseClaims);
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedFirebaseClaims));
-              claimsLoaded = true;
-            }
-
-            if (normalizedFirebaseClaimants.length > 0 || !claimantsLoaded) {
-              setClaimants(normalizedFirebaseClaimants);
-              localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(normalizedFirebaseClaimants));
-              claimantsLoaded = true;
-            }
-
-            setIsDemoMode(false);
-          } catch (fbError) {
-            console.warn('Firebase fetch failed:', fbError);
+          // Prefer cloud data only when it exists. If cloud is empty, keep local data if present.
+          if (normalizedFirebaseClaims.length > 0 || !claimsLoaded) {
+            setClaims(normalizedFirebaseClaims);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedFirebaseClaims));
+            claimsLoaded = true;
           }
-        } else {
-          console.warn('Cloud sync disabled: Firebase is not configured.');
+
+          if (normalizedFirebaseClaimants.length > 0 || !claimantsLoaded) {
+            setClaimants(normalizedFirebaseClaimants);
+            localStorage.setItem(CLAIMANTS_KEY, JSON.stringify(normalizedFirebaseClaimants));
+            claimantsLoaded = true;
+          }
+
+          if (normalizedFirebaseClaims.length > 0 || normalizedFirebaseClaimants.length > 0) {
+            setIsDemoMode(false);
+          }
+        } catch (fbError) {
+          console.warn('Cloud fetch failed:', fbError);
         }
 
         // 3. Fallback to Mock Data ONLY if nothing found
