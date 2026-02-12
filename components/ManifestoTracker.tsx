@@ -79,6 +79,9 @@ export const ManifestoTracker: React.FC<ManifestoTrackerProps> = ({ lang }) => {
     if (!resp.ok) {
       // try to parse structured error
       let errMsg = resp.statusText || 'Server extraction failed';
+      if (resp.status === 403) {
+        errMsg = 'Forbidden (check Vercel Deployment Protection and ensure /api/* is not rewritten to index.html)';
+      }
       try {
         const j = await resp.json();
         if (j && j.error) errMsg = j.error;
