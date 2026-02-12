@@ -1,22 +1,9 @@
 import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
+import { readPublicEnv } from '../utils/envConfig';
 
 const readEnv = (key: string): string => {
-  try {
-    const fromVite = (import.meta as any)?.env?.[key];
-    if (typeof fromVite === 'string' && fromVite.trim()) return fromVite.trim();
-  } catch {
-    // ignore
-  }
-
-  try {
-    const fromWindow = (window as any)?.__ENV__?.[key];
-    if (typeof fromWindow === 'string' && fromWindow.trim()) return fromWindow.trim();
-  } catch {
-    // ignore
-  }
-
-  return '';
+  return readPublicEnv(key);
 };
 
 // IMPORTANT: Use VITE_ keys because this file runs in the browser bundle.
@@ -46,8 +33,7 @@ console.log('Firebase Config Debug:', {
   storageBucket: maskedKey(firebaseConfig.storageBucket),
   messagingSenderId: maskedKey(firebaseConfig.messagingSenderId),
   appId: maskedKey(firebaseConfig.appId),
-  databaseURL: maskedKey(firebaseConfig.databaseURL),
-  VITE_API_KEY: maskedKey(import.meta.env.VITE_API_KEY)
+  databaseURL: maskedKey(firebaseConfig.databaseURL)
 });
 
 // Lazy initialization - only initialize if config values are provided
@@ -55,7 +41,16 @@ let app: any = null;
 let database: any = null;
 
 try {
-  if (firebaseConfig.projectId && firebaseConfig.projectId.trim()) {
+  const requiredKeys: Array<keyof typeof firebaseConfig> = [
+    'apiKey',
+    'authDomain',
+    'projectId',
+    'appId',
+    'databaseURL'
+  ];
+  const missingKeys = requiredKeys.filter((key) => !firebaseConfig[key] || !firebaseConfig[key].trim());
+
+  if (missingKeys.length === 0) {
     console.log('Initializing Firebase with projectId:', firebaseConfig.projectId);
     console.log('Database URL:', firebaseConfig.databaseURL ? firebaseConfig.databaseURL : 'MISSING');
 
@@ -63,7 +58,7 @@ try {
     database = getDatabase(app);
     console.log('Firebase initialized successfully');
   } else {
-    console.warn('Firebase config incomplete - projectId missing or empty');
+    console.warn('Firebase config incomplete. Missing keys:', missingKeys.join(', '));
   }
 } catch (e) {
   console.error('Firebase initialization failed. Check your .env file and ensure all keys start with VITE_. Error details:', e);

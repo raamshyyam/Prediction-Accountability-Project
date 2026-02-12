@@ -1,38 +1,26 @@
 import { GoogleGenAI } from "@google/genai";
+import { getGeminiApiKey, hasUsableGeminiApiKey } from "../utils/envConfig";
 
 let cachedAI: any = null;
 let apiKeyChecked = false;
 
-const readApiKey = (): string => {
-  try {
-    const key = (import.meta as any)?.env?.VITE_API_KEY;
-    if (typeof key === 'string') return key.trim();
-  } catch {
-    // ignore
-  }
-
-  try {
-    const key = (window as any)?.__ENV__?.VITE_API_KEY;
-    if (typeof key === 'string') return key.trim();
-  } catch {
-    // ignore
-  }
-
-  return '';
-};
-
-const getAI = () => {
+const getAI = (): GoogleGenAI | null => {
   if (cachedAI && apiKeyChecked) {
     return cachedAI;
   }
 
-  const apiKey = readApiKey();
+  const apiKey = getGeminiApiKey();
+  const hasApiKey = hasUsableGeminiApiKey();
 
-  if (!apiKey) {
-    console.error("CRITICAL: Gemini API Key is missing. Set VITE_API_KEY in your Vercel environment variables or .env file.");
-    cachedAI = new GoogleGenAI({ apiKey: 'dummy-key-for-error-handling' });
+  if (!hasApiKey) {
+    if (!apiKey) {
+      console.warn("Gemini API key is missing. AI features will use local fallbacks.");
+    } else {
+      console.warn("Gemini API key format appears invalid. AI features will use local fallbacks.");
+    }
+    cachedAI = null;
   } else {
-    console.log("✓ Gemini API Key configured");
+    console.log("Gemini API Key configured");
     cachedAI = new GoogleGenAI({ apiKey });
   }
 
@@ -43,8 +31,7 @@ const getAI = () => {
 export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 'en') => {
   try {
     // If API key isn't available, return a local heuristic analysis
-    const apiKey = readApiKey();
-    const hasApiKey = apiKey !== '' && apiKey !== 'YOUR_GEMINI_API_KEY_HERE';
+    const hasApiKey = hasUsableGeminiApiKey();
 
     const heuristicVagueness = (text: string) => {
       if (!text || !text.trim()) return 5;
@@ -82,6 +69,9 @@ export const analyzeClaimDeeply = async (claimText: string, lang: 'en' | 'ne' = 
     }
 
     const ai = getAI();
+    if (!ai) {
+      throw new Error('Gemini client unavailable');
+    }
     // Create a timeout promise to prevent blocking indefinitely
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Gemini API timeout - took longer than 20 seconds')), 20000);
@@ -189,8 +179,7 @@ Return ONLY valid JSON, no additional text.`,
 
 export const extractManifestoClaims = async (text: string, lang: 'en' | 'ne' = 'en') => {
   // If no API key, do a simple sentence-splitting heuristic
-  const apiKey = readApiKey();
-  const hasApiKey = apiKey !== '' && apiKey !== 'YOUR_GEMINI_API_KEY_HERE';
+  const hasApiKey = hasUsableGeminiApiKey();
 
   if (!hasApiKey) {
     // Smart sentence splitting: extract sentences that look like promises/commitments
@@ -217,6 +206,9 @@ export const extractManifestoClaims = async (text: string, lang: 'en' | 'ne' = '
 
   try {
     const ai = getAI();
+    if (!ai) {
+      return [];
+    }
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: `Extract the key promises or commitments from this manifesto text and return JSON array of objects {text, priority} where priority is high|medium|low.\n\nText:\n${text}`,
@@ -233,7 +225,14 @@ export const extractManifestoClaims = async (text: string, lang: 'en' | 'ne' = '
 
 export const discoverClaims = async (url: string) => {
   try {
+    if (!hasUsableGeminiApiKey()) {
+      return { claims: [] };
+    }
+
     const ai = getAI();
+    if (!ai) {
+      return { claims: [] };
+    }
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: `Extract specific public predictions or claims from this URL: ${url}
@@ -249,7 +248,14 @@ Return JSON with claims array: [{ claimantName, claimText, category, targetDateE
 
 export const searchClaimantBackground = async (claimantName: string) => {
   try {
+    if (!hasUsableGeminiApiKey()) {
+      return { bio: '', knownPredictions: [], accuracyInfo: '', affiliations: [], role: 'Independent' };
+    }
+
     const ai = getAI();
+    if (!ai) {
+      return { bio: '', knownPredictions: [], accuracyInfo: '', affiliations: [], role: 'Independent' };
+    }
 
     // Create a timeout promise (10 seconds for background search)
     const timeoutPromise = new Promise((_, reject) => {
@@ -291,8 +297,7 @@ Return ONLY valid JSON.`,
 
 export const generateVaguenessInsight = async (claimText: string, vaguenessScore: number) => {
   // If API key isn't present, return a local heuristic explanation
-  const apiKey = readApiKey();
-  const hasApiKey = apiKey !== '' && apiKey !== 'YOUR_GEMINI_API_KEY_HERE';
+  const hasApiKey = hasUsableGeminiApiKey();
 
   const generateLocalInsight = (): string => {
     const parts = [] as string[];
@@ -353,6 +358,9 @@ export const generateVaguenessInsight = async (claimText: string, vaguenessScore
 
   try {
     const ai = getAI();
+    if (!ai) {
+      return generateLocalInsight();
+    }
 
     // Add timeout for insight generation (8 seconds)
     const timeoutPromise = new Promise<string>((_, reject) =>
@@ -382,3 +390,4 @@ Provide a concise explanation of which specific elements make it vague or clear.
     return generateLocalInsight();
   }
 };
+

@@ -1,24 +1,7 @@
-const readApiKey = (): string => {
-  try {
-    const key = (import.meta as any)?.env?.VITE_API_KEY;
-    if (typeof key === 'string') return key.trim();
-  } catch {
-    // ignore
-  }
-
-  try {
-    const key = (window as any)?.__ENV__?.VITE_API_KEY;
-    if (typeof key === 'string') return key.trim();
-  } catch {
-    // ignore
-  }
-
-  return '';
-};
+import { hasUsableGeminiApiKey } from './envConfig';
 
 export const isAIConfigured = (): boolean => {
-  const apiKey = readApiKey();
-  return apiKey !== '' && apiKey !== 'YOUR_GEMINI_API_KEY_HERE';
+  return hasUsableGeminiApiKey();
 };
 
 export const getAISetupInstructions = (): string => {
