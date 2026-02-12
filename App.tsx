@@ -92,6 +92,7 @@ function App() {
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
+      const cloudSyncReady = isCloudSyncConfigured();
       try {
         let claimsLoaded = false;
         let claimantsLoaded = false;
@@ -168,23 +169,40 @@ function App() {
           console.warn('Cloud fetch failed:', fbError);
         }
 
-        // 3. Fallback to Mock Data ONLY if nothing found
+        // 3. Fallback behavior when nothing is found.
+        // If cloud sync is available, start with empty datasets so new entries can sync.
+        // Only force demo mock data when cloud sync is not configured.
         if (!claimsLoaded) {
-          console.log('Using mock claims as fallback (Demo Mode)');
-          setClaims(MOCK_CLAIMS.map(normalizeClaim));
-          setIsDemoMode(true);
+          if (cloudSyncReady) {
+            setClaims([]);
+            setIsDemoMode(false);
+          } else {
+            console.log('Using mock claims as fallback (Demo Mode)');
+            setClaims(MOCK_CLAIMS.map(normalizeClaim));
+            setIsDemoMode(true);
+          }
         }
 
         if (!claimantsLoaded) {
-          console.log('Using mock claimants as fallback');
-          setClaimants(MOCK_CLAIMANTS.map(normalizeClaimant));
+          if (cloudSyncReady) {
+            setClaimants([]);
+          } else {
+            console.log('Using mock claimants as fallback');
+            setClaimants(MOCK_CLAIMANTS.map(normalizeClaimant));
+          }
         }
 
       } catch (err) {
         console.error('Error in loadData:', err);
-        setClaims(MOCK_CLAIMS.map(normalizeClaim));
-        setClaimants(MOCK_CLAIMANTS.map(normalizeClaimant));
-        setIsDemoMode(true);
+        if (cloudSyncReady) {
+          setClaims([]);
+          setClaimants([]);
+          setIsDemoMode(false);
+        } else {
+          setClaims(MOCK_CLAIMS.map(normalizeClaim));
+          setClaimants(MOCK_CLAIMANTS.map(normalizeClaimant));
+          setIsDemoMode(true);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -195,7 +213,7 @@ function App() {
 
   // Sync claims to both localStorage and Firebase
   useEffect(() => {
-    if (isLoading || isDemoMode) return;
+    if (isLoading) return;
     const cloudSyncReady = isCloudSyncConfigured();
 
     // Always save to localStorage as backup
@@ -215,7 +233,7 @@ function App() {
 
   // Sync claimants to both localStorage and Firebase
   useEffect(() => {
-    if (isLoading || isDemoMode) return;
+    if (isLoading) return;
     const cloudSyncReady = isCloudSyncConfigured();
 
     // Always save to localStorage as backup
