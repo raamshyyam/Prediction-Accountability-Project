@@ -145,10 +145,16 @@ function App() {
         // 2. Try Firebase when configured
         if (cloudSyncReady) {
           try {
-            const [firebaseClaims, firebaseClaimants] = await Promise.all([
-              getClaims(),
-              getClaimants()
-            ]);
+            // Parallel fetch for speed with timeout
+            const fetchPromise = Promise.all([getClaims(), getClaimants()]);
+            const timeoutPromise = new Promise<[any[], any[]]>((resolve) =>
+              setTimeout(() => {
+                console.warn('Firebase fetch timed out');
+                resolve([[], []]);
+              }, 5000)
+            );
+
+            const [firebaseClaims, firebaseClaimants] = await Promise.race([fetchPromise, timeoutPromise]);
 
             const normalizedFirebaseClaims = firebaseClaims.map(normalizeClaim);
             const normalizedFirebaseClaimants = firebaseClaimants.map(normalizeClaimant);
@@ -243,7 +249,7 @@ function App() {
     return claims.filter(c => {
       const claimant = claimants.find(cl => cl.id === c.claimantId);
       const textMatch = c.text.toLowerCase().includes(searchQuery.toLowerCase());
-      const nameMatch = claimant?.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const nameMatch = (claimant?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
       const topicMatch = c.topicGroup?.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesSearch = textMatch || nameMatch || topicMatch;
