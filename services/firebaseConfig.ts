@@ -36,6 +36,20 @@ console.log('Firebase Config loaded:', {
   dbUrlRegion: firebaseConfig.databaseURL?.includes('asia') ? 'Asia' : 'Other'
 });
 
+// Log config presence (without exposing keys)
+const maskedKey = (key: string | undefined) => key && key.length > 5 ? `${key.substring(0, 5)}...` : (key ? '(present)' : '(MISSING)');
+
+console.log('Firebase Config Debug:', {
+  apiKey: maskedKey(firebaseConfig.apiKey),
+  authDomain: maskedKey(firebaseConfig.authDomain),
+  projectId: maskedKey(firebaseConfig.projectId),
+  storageBucket: maskedKey(firebaseConfig.storageBucket),
+  messagingSenderId: maskedKey(firebaseConfig.messagingSenderId),
+  appId: maskedKey(firebaseConfig.appId),
+  databaseURL: maskedKey(firebaseConfig.databaseURL),
+  VITE_API_KEY: maskedKey(import.meta.env.VITE_API_KEY)
+});
+
 // Lazy initialization - only initialize if config values are provided
 let app: any = null;
 let database: any = null;
